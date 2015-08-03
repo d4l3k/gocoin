@@ -8,7 +8,7 @@
 
 ##Overview
 
-This is a library to make bitcoin address and transactions which is forked from [hellowcoin](https://github.com/prettymuchbryce/hellobitcoin).
+This is a library to make bitcoin address and transactions which was forked from [hellowcoin](https://github.com/prettymuchbryce/hellobitcoin).
 
 This uses btcec library in [btcd](https://github.com/btcsuite/btcd) instead of https://github.com/toxeus/go-secp256k1
 not to use C programs.

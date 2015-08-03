@@ -6,7 +6,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/prettymuchbryce/hellobitcoin/base58check/base58"
+	"github.com/StorjPlatform/bitgoin/base58check/base58"
 )
 
 func Encode(prefix byte, byteData []byte) string {
