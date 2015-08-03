@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/StorjPlatform/hellobitcoin/btcec"
+	"github.com/StorjPlatform/bitgoin/btcec"
 )
 
 func TestGenerateSharedSecret(t *testing.T) {

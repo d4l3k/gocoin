@@ -12,7 +12,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/StorjPlatform/hellobitcoin/btcec"
+	"github.com/StorjPlatform/bitgoin/btcec"
 	"github.com/btcsuite/fastsha256"
 )
 

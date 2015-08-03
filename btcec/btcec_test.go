@@ -14,7 +14,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/StorjPlatform/hellobitcoin/btcec"
+	"github.com/StorjPlatform/bitgoin/btcec"
 )
 
 // TestAddJacobian tests addition of points projected in Jacobian coordinates.
