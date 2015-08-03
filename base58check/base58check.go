@@ -3,25 +3,17 @@ package base58check
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
-	"log"
+	"errors"
 	"math/big"
 
 	"github.com/prettymuchbryce/hellobitcoin/base58check/base58"
 )
 
-func Encode(prefix string, byteData []byte) string {
-	prefixBytes, err := hex.DecodeString(prefix)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func Encode(prefix byte, byteData []byte) string {
 	length := len(byteData) + 1
 	encoded := make([]byte, length)
-	encoded[0] = prefixBytes[0]
-	for i := 1; i < length; i++ {
-		encoded[i] = byteData[i-1]
-	}
+	encoded[0] = prefix
+	copy(encoded[1:], byteData)
 
 	//Perform SHA-256 twice
 	shaHash := sha256.New()
@@ -36,13 +28,13 @@ func Encode(prefix string, byteData []byte) string {
 	checksum := hash2[0:4]
 
 	//Append this checksum to the input bytes
-	encodedChecksum := append(encoded, checksum[0], checksum[1], checksum[2], checksum[3])
+	encodedChecksum := append(encoded, checksum...)
 
 	//base58 alone is not enough. We need to first count each of the zero bytes
 	//which are at the beginning of the encodedCheckSum
 	zeroBytes := 0
-	for i := 0; i < len(encodedChecksum); i++ {
-		if encodedChecksum[i] == 0 {
+	for _, cksum := range encodedChecksum {
+		if cksum == 0 {
 			zeroBytes += 1
 		} else {
 			break
@@ -69,7 +61,7 @@ func Encode(prefix string, byteData []byte) string {
 	return buffer.String()
 }
 
-func Decode(value string) []byte {
+func Decode(value string) ([]byte, byte, error) {
 	zeroBytes := 0
 	for i := 0; i < len(value); i++ {
 		if value[i] == 49 {
@@ -81,23 +73,33 @@ func Decode(value string) []byte {
 
 	publicKeyInt, err := base58.DecodeToBig([]byte(value))
 	if err != nil {
-		log.Fatal(err)
+		return nil, 0, err
 	}
 
 	encodedChecksum := publicKeyInt.Bytes()
 
-	encoded := encodedChecksum[0 : len(encodedChecksum)-4]
+	encoded := encodedChecksum[:len(encodedChecksum)-4]
+	cksum := encodedChecksum[len(encodedChecksum)-4:]
+
+	//Perform SHA-256 twice
+	shaHash := sha256.New()
+	shaHash.Write(encoded)
+	var hash []byte = shaHash.Sum(nil)
+
+	shaHash2 := sha256.New()
+	shaHash2.Write(hash)
+	hash2 := shaHash2.Sum(nil)
+
+	if !bytes.Equal(hash2[:4], cksum) {
+		return nil, 0, errors.New("checksum not matched")
+	}
 
 	var buffer bytes.Buffer
 	for i := 0; i < zeroBytes; i++ {
-		zeroByte, err := hex.DecodeString("00")
-		if err != nil {
-			log.Fatal(err)
-		}
-		buffer.WriteByte(zeroByte[0])
+		buffer.WriteByte(0)
 	}
 
 	buffer.Write(encoded)
 
-	return buffer.Bytes()[1:len(buffer.Bytes())]
+	return buffer.Bytes()[1:], buffer.Bytes()[0], nil
 }
