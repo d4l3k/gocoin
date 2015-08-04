@@ -26,7 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-package bitgoin
+package gocoin
 
 import (
 	"fmt"

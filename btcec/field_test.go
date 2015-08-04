@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/StorjPlatform/bitgoin/btcec"
+	"github.com/StorjPlatform/gocoin/btcec"
 )
 
 // TestSetInt ensures that setting a field value to various native integers

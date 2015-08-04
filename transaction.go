@@ -28,7 +28,7 @@
  * See LICENSE file for the original license:
  */
 
-package bitgoin
+package gocoin
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/StorjPlatform/bitgoin/base58check"
+	"github.com/StorjPlatform/gocoin/base58check"
 )
 
 //	flag.StringVar(&flagPrivateKey, "private-key", "", "The private key of the bitcoin wallet which contains the bitcoins you wish to send.")
@@ -120,23 +120,19 @@ func signRawTransaction(rawTransaction []byte, key *Key) []byte {
 	publicKeyBytes := key.Pub.key.SerializeUncompressed()
 
 	//Hash the raw transaction twice before the signing
-	shaHash := sha256.New()
-	shaHash.Write(rawTransaction)
-	hash := shaHash.Sum(nil)
+	hash := sha256.Sum256(rawTransaction)
+	rawTransactionHashed := sha256.Sum256(hash[:])
 
-	shaHash2 := sha256.New()
-	shaHash2.Write(hash)
-	rawTransactionHashed := shaHash2.Sum(nil)
 
 	//Sign the raw transaction
-	sig, err := key.Priv.key.Sign(rawTransactionHashed)
+	sig, err := key.Priv.key.Sign(rawTransactionHashed[:])
 	if err != nil {
 		log.Fatal("Failed to sign transaction")
 	}
 	signedTransaction := sig.Serialize()
 
 	//Verify that it worked.
-	verified := sig.Verify(rawTransactionHashed, key.Pub.key)
+	verified := sig.Verify(rawTransactionHashed[:], key.Pub.key)
 	if !verified {
 		log.Fatal("Failed to sign transaction")
 	}

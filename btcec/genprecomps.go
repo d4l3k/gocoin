@@ -17,7 +17,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/StorjPlatform/bitgoin/btcec"
+	"github.com/StorjPlatform/gocoin/btcec"
 )
 
 func main() {

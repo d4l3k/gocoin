@@ -28,7 +28,7 @@
  * see LICENSE file for the original license:
  */
 
-package bitgoin
+package gocoin
 
 import (
 	"crypto/rand"
@@ -36,8 +36,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/StorjPlatform/bitgoin/base58check"
-	"github.com/StorjPlatform/bitgoin/btcec"
+	"github.com/StorjPlatform/gocoin/base58check"
+	"github.com/StorjPlatform/gocoin/btcec"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -176,12 +176,10 @@ func (pub *PublicKey) GetAddress() (string, []byte) {
 
 	//Next we get a sha256 hash of the public key generated
 	//via ECDSA, and then get a ripemd160 hash of the sha256 hash.
-	shaHash := sha256.New()
-	shaHash.Write(pub.key.SerializeUncompressed())
-	shadPublicKeyBytes := shaHash.Sum(nil)
+	shadPublicKeyBytes := sha256.Sum256(pub.key.SerializeUncompressed())
 
 	ripeHash := ripemd160.New()
-	ripeHash.Write(shadPublicKeyBytes)
+	ripeHash.Write(shadPublicKeyBytes[:])
 	ripeHashedBytes := ripeHash.Sum(nil)
 
 	publicKeyEncoded := base58check.Encode(publicKeyPrefix, ripeHashedBytes)

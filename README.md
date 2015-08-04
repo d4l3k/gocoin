@@ -1,10 +1,10 @@
-[![Build Status](https://travis-ci.org/StorjPlatform/bitgoin.svg?branch=master)](https://travis-ci.org/StorjPlatform/bitgoin)
-[![GoDoc](https://godoc.org/github.com/StorjPlatform/bitgoin?status.svg)](https://godoc.org/github.com/StorjPlatform/bitgoin)
-[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/StorjPlatform/bitgoin/master/LICENSE)
-[![Coverage Status](https://coveralls.io/repos/StorjPlatform/bitgoin/badge.svg?branch=master)](https://coveralls.io/r/StorjPlatform/bitgoin?branch=master)
+[![Build Status](https://travis-ci.org/StorjPlatform/gocoin.svg?branch=master)](https://travis-ci.org/StorjPlatform/gocoin)
+[![GoDoc](https://godoc.org/github.com/StorjPlatform/gocoin?status.svg)](https://godoc.org/github.com/StorjPlatform/gocoin)
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/StorjPlatform/gocoin/master/LICENSE)
+[![Coverage Status](https://coveralls.io/repos/StorjPlatform/gocoin/badge.svg?branch=master)](https://coveralls.io/r/StorjPlatform/gocoin?branch=master)
 
 
-# Bitgoin 
+# GOcoin 
 
 ##Overview
 

@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/StorjPlatform/bitgoin/btcec"
+	"github.com/StorjPlatform/gocoin/btcec"
 )
 
 func TestPrivKeys(t *testing.T) {
