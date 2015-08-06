@@ -2,12 +2,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"crypto/rand"
 	"net"
 	"os"
 	"strconv"

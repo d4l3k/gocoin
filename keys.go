@@ -43,13 +43,13 @@ import (
 
 var flagTestnet bool
 
-//PublicKey represents public key for bitcoin 
+//PublicKey represents public key for bitcoin
 type PublicKey struct {
 	key       *btcec.PublicKey
 	isTestnet bool
 }
 
-//PrivateKey represents private key for bitcoin 
+//PrivateKey represents private key for bitcoin
 type PrivateKey struct {
 	key       *btcec.PrivateKey
 	isTestnet bool
@@ -128,15 +128,11 @@ func GenerateKey(flagTestnet bool) (*Key, error) {
 	}
 	s256 := btcec.S256()
 
-	priv, pub := btcec.PrivKeyFromBytes(s256, seed)
-	private := PrivateKey{
-		key:       priv,
-		isTestnet: flagTestnet,
-	}
-	public := PublicKey{
-		key:       pub,
-		isTestnet: flagTestnet,
-	}
+	private := PrivateKey{}
+	private.isTestnet = flagTestnet
+	public := PublicKey{}
+	public.isTestnet = flagTestnet
+	private.key, public.key = btcec.PrivKeyFromBytes(s256, seed)
 	key := Key{
 		Pub:  &public,
 		Priv: &private,
@@ -184,4 +180,21 @@ func (pub *PublicKey) GetAddress() (string, []byte) {
 
 	publicKeyEncoded := base58check.Encode(publicKeyPrefix, ripeHashedBytes)
 	return publicKeyEncoded, ripeHashedBytes
+}
+
+func IsTestnet(addr string) (bool, error) {
+	_, prefix, err := base58check.Decode(addr)
+	if err != nil {
+		return false, err
+	}
+
+	switch {
+	case prefix == 0x6f:
+		return true, nil
+	case prefix == 0x00:
+		return false, nil
+	default:
+		return false, errors.New("invalid address")
+	}
+
 }

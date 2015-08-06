@@ -8,7 +8,7 @@
 
 ##Overview
 
-This is a library to make bitcoin address and transactions which was forked from [hellowcoin](https://github.com/prettymuchbryce/hellobitcoin).
+This is a library to make bitcoin address and transactions which was forked from [hellobitcoin](https://github.com/prettymuchbryce/hellobitcoin).
 
 This uses btcec library in [btcd](https://github.com/btcsuite/btcd) instead of https://github.com/toxeus/go-secp256k1
 not to use C programs.
@@ -23,17 +23,16 @@ not to use C programs.
 ## Example
 ```go
 
-import bitgoin
+import gocoin
 
 func main(){
-	key, _ := bitgoin.GenerateKey(true)
+	key, _ := gocoin.GenerateKey(true)
 	adr, _ := key.Pub.GetAddress()
 	fmt.Println("address=", adr)
 	wif := key.Priv.GetWIFAddress()
 	fmt.Println("wif=", wif)
 
-	txKey, _ := bitgoin.GetKeyFromWIF(wif)
-	txKey, _ := bitgoin.GetKeyFromWIF(wif)
+	txKey, _ := gocoin.GetKeyFromWIF(wif)
 	tx, _ := bitgoin.MakeTX(txKey, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi", "1a103718e2e0462c50cb057a0f39d7c6cbf960276452d07dc4a50ddca725949c", 1, 68000000)
 	fmt.Println(tx)
 }
