@@ -9,6 +9,7 @@
 ##Overview
 
 This is a library to make bitcoin address and transactions which was forked from [hellobitcoin](https://github.com/prettymuchbryce/hellobitcoin).
+Additionally you can gether unspent transaction outputs(UTXO) and send transaction by using [Blockr.io](http://blockr.io) WEB API.
 
 This uses btcec library in [btcd](https://github.com/btcsuite/btcd) instead of https://github.com/toxeus/go-secp256k1
 not to use C programs.
@@ -26,6 +27,7 @@ not to use C programs.
 import gocoin
 
 func main(){
+	//make a public and private key pair.
 	key, _ := gocoin.GenerateKey(true)
 	adr, _ := key.Pub.GetAddress()
 	fmt.Println("address=", adr)
@@ -33,8 +35,36 @@ func main(){
 	fmt.Println("wif=", wif)
 
 	txKey, _ := gocoin.GetKeyFromWIF(wif)
-	tx, _ := bitgoin.MakeTX(txKey, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi", "1a103718e2e0462c50cb057a0f39d7c6cbf960276452d07dc4a50ddca725949c", 1, 68000000)
-	fmt.Println(tx)
+
+
+	//gethter unspent trnasactions transaction
+	s := NewBlockrService(true)
+	txs, _ := s.GetUTXO(adr)
+
+	if len(txs) > 1 {
+		//create a transaction.
+		txin := TXin{}
+		txin.Hash = txs[0].Hash
+		txin.Index = txs[0].Index
+		txin.Sequence = uint32(0xffffffff)
+		txin.TxPrevScript = txs[0].Script
+		txin.key = txKey
+
+		txout := TXout{}
+		txout.Value = txs[0].Amount - 1000000
+		txout.CreateStandardScript("n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi")
+		tx := TX{}
+		tx.Txin = []*TXin{&txin}
+		tx.Txout = []*TXout{&txout}
+		tx.Locktime = 0
+
+		rawtx, _:= tx.MakeTX()
+		fmt.Println(hex.EncodeToString(rawtx))
+
+	    //send a transaction
+		txHash, _:= s.SendTX(rawtx)
+		fmt.Println(hex.EncodeToString(txHash))
+	}
 }
 ````
 
