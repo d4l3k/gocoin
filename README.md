@@ -17,8 +17,13 @@ not to use C programs.
 
 ###Installation
 
-1. Install [go](http://golang.org/)
-2. run `go get` to install dependencies
+    $ mkdir tmp
+    $ cd tmp
+    $ mkdir src
+    $ mkdir bin
+    $ mkdir pkg
+    $ exoprt GOPATH=`pwd`
+    $ go get github.com/StorjPlatform/gocoin
 
 
 ## Example
