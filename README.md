@@ -38,24 +38,24 @@ func main(){
 
 
 	//gethter unspent trnasactions transaction
-	s := NewBlockrService(true)
+	s := gocoin.NewBlockrService(true)
 	txs, _ := s.GetUTXO(adr)
 
 	if len(txs) > 1 {
 		//create a transaction.
-		txin := TXin{}
+		txin := gocoin.TXin{}
 		txin.Hash = txs[0].Hash
 		txin.Index = txs[0].Index
 		txin.Sequence = uint32(0xffffffff)
 		txin.TxPrevScript = txs[0].Script
 		txin.key = txKey
 
-		txout := TXout{}
+		txout := gocoin.TXout{}
 		txout.Value = txs[0].Amount - 1000000
 		txout.CreateStandardScript("n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi")
-		tx := TX{}
-		tx.Txin = []*TXin{&txin}
-		tx.Txout = []*TXout{&txout}
+		tx := gocoin.TX{}
+		tx.Txin = []*gocoin.TXin{&txin}
+		tx.Txout = []*gocoin.TXout{&txout}
 		tx.Locktime = 0
 
 		rawtx, _:= tx.MakeTX()
