@@ -29,17 +29,6 @@
 
 package gocoin
 
-import (
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"net/url"
-	"strconv"
-)
-
 //UTXO represents unspent transaction outputs.
 type UTXO struct {
 	Hash   []byte
@@ -50,123 +39,15 @@ type UTXO struct {
 
 //Service is for getting UTXO or sending transactions , basically by using WEB API.
 type Service interface {
+	GetServiceName() string
 	GetUTXO(string) ([]*UTXO, error)
 	SendTX([]byte) ([]byte, error)
 }
 
-//BlockrService is a service using Blockr.io.
-type BlockrService struct {
-	isTestnet bool
+var TestServices = []func() (Service, error){
+	NewBlockrServiceForTest,
 }
 
-type unspent struct {
-	Status string
-	Data   struct {
-		Address string
-		Unspent []struct {
-			Tx            string
-			Amount        string
-			N             int
-			Confirmations int
-			Script        string
-		}
-	}
-	Code    int
-	Message string
-}
-
-type sendtx struct {
-	Status  string
-	Data    string
-	Code    int
-	Message string
-}
-
-//NewBlockrService creates BlockrService struct.
-func NewBlockrService(isTestnet bool) *BlockrService {
-	return &BlockrService{isTestnet: isTestnet}
-}
-
-//SendTX send a transaction using Blockr.io.
-func (b *BlockrService) SendTX(data []byte) ([]byte, error) {
-	var btc string
-
-	if b.isTestnet {
-		btc = "tbtc"
-	} else {
-		btc = "btc"
-	}
-
-	resp, err := http.PostForm("http://"+btc+".blockr.io/api/v1/tx/push",
-		url.Values{"hex": {hex.EncodeToString(data)}})
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println(string(body))
-	var u sendtx
-	err = json.Unmarshal(body, &u)
-	if err != nil {
-		return nil, err
-	}
-	if u.Status != "success" {
-		return nil, errors.New("blockr returns " + u.Message)
-
-	}
-	return hex.DecodeString(u.Data)
-}
-
-//GetUTXO gets unspent transaction outputs by using Blockr.io.
-func (b *BlockrService) GetUTXO(addr string) ([]*UTXO, error) {
-	var btc string
-
-	if b.isTestnet {
-		btc = "tbtc"
-	} else {
-		btc = "btc"
-	}
-
-	resp, err := http.Get("http://" + btc + ".blockr.io/api/v1/address/unspent/" + addr)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	var u unspent
-	err = json.Unmarshal(body, &u)
-	if err != nil {
-		return nil, err
-	}
-	if u.Status != "success" {
-		return nil, errors.New("blockr returns " + u.Message)
-
-	}
-	utxos := make([]*UTXO, len(u.Data.Unspent))
-	for i, tx := range u.Data.Unspent {
-		utxo := UTXO{}
-		amount, err := strconv.ParseFloat(tx.Amount, 64)
-		if err != nil {
-			return nil, err
-		}
-		utxo.Amount = uint64(amount * 100000000)
-		utxo.Hash, err = hex.DecodeString(tx.Tx)
-		if err != nil {
-			return nil, err
-		}
-		utxo.Index = uint32(tx.N)
-		utxo.Script, err = hex.DecodeString(tx.Script)
-		if err != nil {
-			return nil, err
-		}
-		utxos[i] = &utxo
-	}
-
-	return utxos, nil
+var Services = []func() (Service, error){
+	NewBlockrService,
 }

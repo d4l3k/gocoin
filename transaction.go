@@ -36,20 +36,18 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
 
 	"github.com/StorjPlatform/gocoin/base58check"
 )
 
 //TXin represents tx input of a transaction.
 type TXin struct {
-	Hash         []byte
-	Index        uint32
-	script       []byte
-	Sequence     uint32
-	TxPrevScript []byte
-	key          *Key
-	CreateScript func([]byte) error
+	Hash             []byte
+	Index            uint32
+	scriptSig        []byte
+	Sequence         uint32
+	PrevScriptPubkey []byte
+	CreateScriptSig  func(rawTransactionHashed []byte) ([]byte, error)
 }
 
 //TXout represents tx output of a transaction.
@@ -67,84 +65,62 @@ type TX struct {
 
 //MakeTX makes transaction and return tx hex string(not send)
 func (tx *TX) MakeTX() ([]byte, error) {
+	var err error
 	for i, in := range tx.Txin {
-		rawTransaction := tx.createRawTransaction(i)
+		rawTransactionHashed := tx.getRawTransactionHash(i)
 
-		//After completing the raw transaction, we append
-		//SIGHASH_ALL in little-endian format to the end of the raw transaction.
-		hashCodeType := []byte{0x01, 0x00, 0x00, 0x00}
-
-		var rawTransactionBuffer bytes.Buffer
-		rawTransactionBuffer.Write(rawTransaction)
-		rawTransactionBuffer.Write(hashCodeType)
-		rawTransactionWithHashCodeType := rawTransactionBuffer.Bytes()
-		if in.CreateScript == nil {
-			in.CreateScript = in.CreateStandardScript
+		if in.CreateScriptSig == nil {
+			return nil, errors.New("in.CreateScriptSig must be set")
 		}
-		err := in.CreateScript(rawTransactionWithHashCodeType)
+		in.scriptSig, err = in.CreateScriptSig(rawTransactionHashed[:])
 		if err != nil {
-			return nil, nil
+			return nil, err
 		}
 	}
 	//Sign the raw transaction, and output it to the console.
 	finalTransaction := tx.createRawTransaction(-1)
 	finalTransactionHex := hex.EncodeToString(finalTransaction)
 
-	fmt.Println("Your final transaction is")
-	fmt.Println(finalTransactionHex)
+	logging.Println("Your final transaction is")
+	logging.Println(finalTransactionHex)
 
 	return finalTransaction, nil
 }
 
-//CreateStandardScriptPubKey creates standard script pubkey .
-func CreateStandardScriptPubKey(publicKeyBase58 string) ([]byte, error) {
+//CreateStandardScriptPubkey creates standard script pubkey .
+func CreateStandardScriptPubkey(publicKeyBase58 string) ([]byte, error) {
 	publicKeyBytes, _, err := base58check.Decode(publicKeyBase58)
 	if err != nil {
 		return nil, err
 	}
 
 	var scriptPubKey bytes.Buffer
-	scriptPubKey.WriteByte(byte(118))                 //OP_DUP
-	scriptPubKey.WriteByte(byte(169))                 //OP_HASH160
+	scriptPubKey.WriteByte(opDUP)
+	scriptPubKey.WriteByte(opHASH160)
 	scriptPubKey.WriteByte(byte(len(publicKeyBytes))) //PUSH
 	scriptPubKey.Write(publicKeyBytes)
-	scriptPubKey.WriteByte(byte(136)) //OP_EQUALVERIFY
-	scriptPubKey.WriteByte(byte(172)) //OP_CHECKSIG
+	scriptPubKey.WriteByte(opEQUALVERIFY)
+	scriptPubKey.WriteByte(opCHECKSIG)
 	script := scriptPubKey.Bytes()
 	return script, nil
 }
 
-//CreateStandardScriptPubKey creates standard script pubkey and fills TXout.Script.
-func (txout *TXout) CreateStandardScript(publicKeyBase58 string) error {
-	var err error
-	txout.Script, err = CreateStandardScriptPubKey(publicKeyBase58)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 //CreateStandardScript creates standard scriptsig and fills TXin.Script.
-func (txin *TXin) CreateStandardScript(rawTransaction []byte) error {
-	//Here we start the process of signing the raw transaction.
+func CreateStandardScriptSig(rawTransactionHashed []byte, key *Key) ([]byte, error) {
 
-	publicKeyBytes := txin.key.Pub.key.SerializeUncompressed()
-
-	//Hash the raw transaction twice before the signing
-	hash := sha256.Sum256(rawTransaction)
-	rawTransactionHashed := sha256.Sum256(hash[:])
+	publicKeyBytes := key.Pub.key.SerializeUncompressed()
 
 	//Sign the raw transaction
-	sig, err := txin.key.Priv.key.Sign(rawTransactionHashed[:])
+	sig, err := key.Priv.key.Sign(rawTransactionHashed)
 	if err != nil {
-		return errors.New("failed to sign transaction")
+		return nil, errors.New("failed to sign transaction")
 	}
 	signedTransaction := sig.Serialize()
 
 	//Verify that it worked.
-	verified := sig.Verify(rawTransactionHashed[:], txin.key.Pub.key)
+	verified := sig.Verify(rawTransactionHashed[:], key.Pub.key)
 	if !verified {
-		return errors.New("Failed to sign transaction")
+		return nil, errors.New("Failed to sign transaction")
 	}
 
 	//+1 for hashCodeType
@@ -161,12 +137,32 @@ func (txin *TXin) CreateStandardScript(rawTransaction []byte) error {
 	buffer.WriteByte(pubKeyLength)
 	buffer.Write(publicKeyBuffer.Bytes())
 
-	txin.script = buffer.Bytes()
+	scriptSig := buffer.Bytes()
 
-	return nil
+	return scriptSig, nil
 	//Return the final transaction
 }
 
+func (tx *TX) getRawTransactionHash(numSign int) []byte {
+	rawTransaction := tx.createRawTransaction(numSign)
+	//After completing the raw transaction, we append
+	//SIGHASH_ALL in little-endian format to the end of the raw transaction.
+	hashCodeType := []byte{0x01, 0x00, 0x00, 0x00}
+
+	var rawTransactionBuffer bytes.Buffer
+	rawTransactionBuffer.Write(rawTransaction)
+	rawTransactionBuffer.Write(hashCodeType)
+	rawTransactionWithHashCodeType := rawTransactionBuffer.Bytes()
+	//Hash the raw transaction twice before the signing
+	hash := sha256.Sum256(rawTransactionWithHashCodeType)
+	h := sha256.Sum256(hash[:])
+	return h[:]
+}
+
+//createRawTransaction creates a transaction from tx struct.
+//if numSing>=0, this returns a transaction for singning, and
+//numSign is number of txin which will be singed later.
+//if numSing<0, returns a transaction for broadcast.
 func (tx *TX) createRawTransaction(numSign int) []byte {
 	//Create the raw transaction.
 	var buffer bytes.Buffer
@@ -197,11 +193,11 @@ func (tx *TX) createRawTransaction(numSign int) []byte {
 		var script []byte
 		switch {
 		case nIn == numSign:
-			script = in.TxPrevScript
+			script = in.PrevScriptPubkey
 		case numSign >= 0:
 			script = []byte{}
 		default:
-			script = in.script
+			script = in.scriptSig
 		}
 		//Script sig length
 		scriptSigLength := len(script)

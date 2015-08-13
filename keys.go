@@ -34,12 +34,26 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"fmt"
+	"log"
+	"os"
 
 	"github.com/StorjPlatform/gocoin/base58check"
 	"github.com/StorjPlatform/gocoin/btcec"
 	"golang.org/x/crypto/ripemd160"
 )
+
+var logging *log.Logger
+
+//initialize logger.
+func init() {
+	logging = log.New(os.Stdout, "",
+		log.Ldate|log.Ltime|log.Lshortfile)
+}
+
+//SetLogger sets logger this module uses.
+func SetLogger(logger *log.Logger) {
+	logging = logger
+}
 
 var flagTestnet bool
 
@@ -84,6 +98,15 @@ type Key struct {
 //6f is the testnet prefix
 //00 is the mainnet prefix
 
+func GetPublicKey(pubKeyByte []byte, isTestnet bool) (*PublicKey, error) {
+	secp256k1 := btcec.S256()
+	key, err := btcec.ParsePubKey(pubKeyByte, secp256k1)
+	if err != nil {
+		return nil, err
+	}
+	return &PublicKey{key: key, isTestnet: isTestnet}, nil
+}
+
 //GetKeyFromWIF gets PublicKey and PrivateKey from private key of WIF format.
 func GetKeyFromWIF(wif string) (*Key, error) {
 	secp256k1 := btcec.S256()
@@ -91,7 +114,7 @@ func GetKeyFromWIF(wif string) (*Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(privateKeyBytes)
+	logging.Println(privateKeyBytes)
 
 	pub := PublicKey{}
 	priv := PrivateKey{}
@@ -139,13 +162,22 @@ func GenerateKey(flagTestnet bool) (*Key, error) {
 	}
 
 	//Print the keys
-	fmt.Println("Your private key in WIF is")
-	fmt.Println(private.GetWIFAddress())
+	logging.Println("Your private key in WIF is")
+	logging.Println(private.GetWIFAddress())
 
-	fmt.Println("Your address is")
-	fmt.Println(public.GetAddress())
+	logging.Println("Your address is")
+	logging.Println(public.GetAddress())
 
 	return &key, nil
+}
+
+//GetWIFAddress returns WIF format string from PrivateKey
+func (priv *PrivateKey) Sign(hash []byte) ([]byte, error) {
+	sig, err := priv.key.Sign(hash)
+	if err != nil {
+		return nil, err
+	}
+	return sig.Serialize(), nil
 }
 
 //GetWIFAddress returns WIF format string from PrivateKey

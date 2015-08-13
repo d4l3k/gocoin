@@ -3,7 +3,8 @@ package base58check
 import (
 	"bytes"
 	"crypto/sha256"
-	"errors"
+	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"github.com/StorjPlatform/gocoin/base58check/base58"
@@ -16,13 +17,8 @@ func Encode(prefix byte, byteData []byte) string {
 	copy(encoded[1:], byteData)
 
 	//Perform SHA-256 twice
-	shaHash := sha256.New()
-	shaHash.Write(encoded)
-	var hash []byte = shaHash.Sum(nil)
-
-	shaHash2 := sha256.New()
-	shaHash2.Write(hash)
-	hash2 := shaHash2.Sum(nil)
+	hash := sha256.Sum256(encoded)
+	hash2 := sha256.Sum256(hash[:])
 
 	//First 4 bytes if this double-sha'd byte array is the checksum
 	checksum := hash2[0:4]
@@ -81,19 +77,6 @@ func Decode(value string) ([]byte, byte, error) {
 	encoded := encodedChecksum[:len(encodedChecksum)-4]
 	cksum := encodedChecksum[len(encodedChecksum)-4:]
 
-	//Perform SHA-256 twice
-	shaHash := sha256.New()
-	shaHash.Write(encoded)
-	var hash []byte = shaHash.Sum(nil)
-
-	shaHash2 := sha256.New()
-	shaHash2.Write(hash)
-	hash2 := shaHash2.Sum(nil)
-
-	if !bytes.Equal(hash2[:4], cksum) {
-		return nil, 0, errors.New("checksum not matched")
-	}
-
 	var buffer bytes.Buffer
 	for i := 0; i < zeroBytes; i++ {
 		buffer.WriteByte(0)
@@ -101,5 +84,13 @@ func Decode(value string) ([]byte, byte, error) {
 
 	buffer.Write(encoded)
 
-	return buffer.Bytes()[1:], buffer.Bytes()[0], nil
+	//Perform SHA-256 twice
+	hash := sha256.Sum256(encoded)
+	hash2 := sha256.Sum256(hash[:])
+
+	if !bytes.Equal(hash2[:4], cksum) {
+		fmt.Println("warn:", "checksum not matched", "embeded cksum:", hex.EncodeToString(cksum), "cksum:", hex.EncodeToString(hash2[:4]))
+	}
+
+	return buffer.Bytes()[1:], buffer.Bytes()[0], err
 }

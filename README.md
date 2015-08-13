@@ -9,7 +9,8 @@
 ##Overview
 
 This is a library to make bitcoin address and transactions which was forked from [hellobitcoin](https://github.com/prettymuchbryce/hellobitcoin).
-Additionally you can gether unspent transaction outputs(UTXO) and send transaction by using [Blockr.io](http://blockr.io) WEB API.
+Additionally you can gether unspent transaction outputs(UTXO) and send transaction by using [Blockr.io](http://blockr.io) WEB API,
+and can use M of N multisig whose codes was partially ported from https://github.com/soroushjp/go-bitcoin-multisig.
 
 This uses btcec library in [btcd](https://github.com/btcsuite/btcd) instead of https://github.com/toxeus/go-secp256k1
 not to use C programs.
@@ -58,6 +59,7 @@ func main(){
 		txout := gocoin.TXout{}
 		txout.Value = txs[0].Amount - 1000000
 		txout.CreateStandardScript("n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi")
+
 		tx := gocoin.TX{}
 		tx.Txin = []*gocoin.TXin{&txin}
 		tx.Txout = []*gocoin.TXout{&txout}
