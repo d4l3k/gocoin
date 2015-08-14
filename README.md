@@ -8,18 +8,26 @@
 
 ## Overview
 
-This is a library to make bitcoin address and transactions which was forked from [hellobitcoin](https://github.com/prettymuchbryce/hellobitcoin),
-and has some additional functions.
+This is a library to make bitcoin address and transactions which was initially forked from [hellobitcoin](https://github.com/prettymuchbryce/hellobitcoin),
+and added some useful features.
 
-This uses btcec library in [btcd](https://github.com/btcsuite/btcd) instead of https://github.com/toxeus/go-secp256k1
-to be a pure GO program.
+GOcoin uses btcec library in [btcd](https://github.com/btcsuite/btcd) instead of https://github.com/toxeus/go-secp256k1
+to make it a pure GO program.
 
 
-## Functions 
+## Features 
 
-1. Normaly Payment(P2PKH) including multi TXin and multi TXout.
+1. Normaly Payment(P2PKH) supporting multi TxIns and multi TxOuts.
 2. Gethering unspent transaction outputs(UTXO) and send transactions by using [Blockr.io](http://blockr.io) WEB API.
-3. M of N multisig whose codes was partially ported from https://github.com/soroushjp/go-bitcoin-multisig.
+3. M of N multisig whose codes were partially ported from https://github.com/soroushjp/go-bitcoin-multisig.
+
+
+## Requirements
+
+This requires
+
+* git
+* go 1.3+
 
 
 ## Installation
@@ -34,7 +42,7 @@ to be a pure GO program.
 
 
 ## Example
-(This omits error handling for simplicity.)
+(This example omits error handlings for simplicity.)
 
 ```go
 
@@ -50,8 +58,6 @@ func main(){
 	
 	//get key from wif
 	wif := "928Qr9J5oAC6AYieWJ3fG3dZDjuC7BFVUqgu4GsvRVpoXiTaJJf"
-	txKey, _ := gocoin.GetKeyFromWIF(wif)
-
 	txKey, _ := gocoin.GetKeyFromWIF(wif)
 
 	//get unspent transactions
@@ -78,8 +84,6 @@ func main(){
 	_, err = rs.Spend(tx, [][]byte{sign1, sign2}, service)
 }
 ````
-
-
 
 # Contribution
 Improvements to the codebase and pull requests are encouraged.
