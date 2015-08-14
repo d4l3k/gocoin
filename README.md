@@ -6,17 +6,23 @@
 
 # GOcoin 
 
-##Overview
+## Overview
 
-This is a library to make bitcoin address and transactions which was forked from [hellobitcoin](https://github.com/prettymuchbryce/hellobitcoin).
-Additionally you can gether unspent transaction outputs(UTXO) and send transaction by using [Blockr.io](http://blockr.io) WEB API,
-and can use M of N multisig whose codes was partially ported from https://github.com/soroushjp/go-bitcoin-multisig.
+This is a library to make bitcoin address and transactions which was forked from [hellobitcoin](https://github.com/prettymuchbryce/hellobitcoin),
+and has some additional functions.
 
 This uses btcec library in [btcd](https://github.com/btcsuite/btcd) instead of https://github.com/toxeus/go-secp256k1
-not to use C programs.
+to be a pure GO program.
 
 
-###Installation
+## Functions 
+
+1. Normaly Payment(P2PKH) including multi TXin and multi TXout.
+2. Gethering unspent transaction outputs(UTXO) and send transactions by using [Blockr.io](http://blockr.io) WEB API.
+3. M of N multisig whose codes was partially ported from https://github.com/soroushjp/go-bitcoin-multisig.
+
+
+## Installation
 
     $ mkdir tmp
     $ cd tmp
@@ -28,6 +34,8 @@ not to use C programs.
 
 
 ## Example
+(This omits error handling for simplicity.)
+
 ```go
 
 import gocoin
@@ -39,39 +47,35 @@ func main(){
 	fmt.Println("address=", adr)
 	wif := key.Priv.GetWIFAddress()
 	fmt.Println("wif=", wif)
+	
+	//get key from wif
+	wif := "928Qr9J5oAC6AYieWJ3fG3dZDjuC7BFVUqgu4GsvRVpoXiTaJJf"
+	txKey, _ := gocoin.GetKeyFromWIF(wif)
 
 	txKey, _ := gocoin.GetKeyFromWIF(wif)
 
+	//get unspent transactions
+	service := gocoin.NewBlockrService(true)
+	txs, _ := service.GetUTXO(adr,nil)
+	
+	//Normal Payment
+	_, err = Pay([]*Key{txKey}, map[string]uint64{"n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * satoshi}, service)
+	
+	//2 of 3 multisig
+	key1, _ := gocoin.GenerateKey(true)
+	key2, _ := gocoin.GenerateKey(true)
+	key3, _ := gocoin.GenerateKey(true)
+	rs, _:= gocoin.NewRedeemScript(2, []*PublicKey{key1.Pub, key2.Pub, key3.Pub})
+	//make a fund
+	_, err = rs.Pay([]*Key{txKey}, 5000000, service)
 
-	//gethter unspent trnasactions transaction
-	s := gocoin.NewBlockrService(true)
-	txs, _ := s.GetUTXO(adr)
+    //get a raw transaction for signing.
+	rawtx, tx, _:= rs.CreateRawTransactionHashed(map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 50000*satoshi}, service)
 
-	if len(txs) > 1 {
-		//create a transaction.
-		txin := gocoin.TXin{}
-		txin.Hash = txs[0].Hash
-		txin.Index = txs[0].Index
-		txin.Sequence = uint32(0xffffffff)
-		txin.TxPrevScript = txs[0].Script
-		txin.key = txKey
-
-		txout := gocoin.TXout{}
-		txout.Value = txs[0].Amount - 1000000
-		txout.CreateStandardScript("n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi")
-
-		tx := gocoin.TX{}
-		tx.Txin = []*gocoin.TXin{&txin}
-		tx.Txout = []*gocoin.TXout{&txout}
-		tx.Locktime = 0
-
-		rawtx, _:= tx.MakeTX()
-		fmt.Println(hex.EncodeToString(rawtx))
-
-	    //send a transaction
-		txHash, _:= s.SendTX(rawtx)
-		fmt.Println(hex.EncodeToString(txHash))
-	}
+	//spend the fund
+	sign1, _:= key2.Priv.Sign(rawtx)
+	sign2, _:= key3.Priv.Sign(rawtx)
+	_, err = rs.Spend(tx, [][]byte{sign1, sign2}, service)
 }
 ````
 

@@ -31,12 +31,13 @@ package gocoin
 import (
 	"bytes"
 	"encoding/hex"
+	"sort"
 	"testing"
 )
 
 var usedTX1, usedTX2 []byte
 
-func TestTestKeys(t *testing.T) {
+func TestKeys2(t *testing.T) {
 	key, err := GenerateKey(true)
 	if err != nil {
 		t.Errorf(err.Error())
@@ -100,16 +101,16 @@ func TestTX(t *testing.T) {
 	}
 	txin.Index = 1
 	txin.Sequence = uint32(0xffffffff)
-	txin.PrevScriptPubkey, err = CreateStandardScriptPubkey(adr)
+	txin.PrevScriptPubkey, err = createP2PKHScriptPubkey(adr)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
 	txin.CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-		return CreateStandardScriptSig(rawTransaction, txKey)
+		return createP2PKHScriptSig(rawTransaction, txKey)
 	}
 	txout := TXout{}
 	txout.Value = 68000000
-	txout.Script, err = CreateStandardScriptPubkey("n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi")
+	txout.ScriptPubkey, err = createP2PKHScriptPubkey("n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi")
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -130,7 +131,6 @@ func TestTX(t *testing.T) {
 }
 
 func TestSend(t *testing.T) {
-
 	wif := "928Qr9J5oAC6AYieWJ3fG3dZDjuC7BFVUqgu4GsvRVpoXiTaJJf"
 	txKey, err := GetKeyFromWIF(wif)
 	if err != nil {
@@ -141,59 +141,26 @@ func TestSend(t *testing.T) {
 	if adr != "n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy" {
 		t.Errorf("invalid address")
 	}
-	s, err := NewBlockrServiceForTest()
+	service, err := SelectService(true)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	txs, err := s.GetUTXO(adr)
+	txs, err := service.GetUTXO(adr, nil)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
 	logging.Println("UTXO:")
-	var utxo *UTXO
 	for _, tx := range txs {
 		logging.Println("hash", hex.EncodeToString(tx.Hash))
 		logging.Println("amount", tx.Amount)
 		logging.Println("index", tx.Index)
 		logging.Println("script", hex.EncodeToString(tx.Script))
-		if tx.Amount > 1100000 && bytes.Compare(tx.Hash, usedTX2) != 0 {
-			utxo = tx
-			usedTX1 = utxo.Hash
-		}
+	}
+	_, err = Pay([]*Key{txKey}, map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 0.05 * satoshi, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * satoshi}, service)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
-	if utxo != nil {
-		logging.Println("using tx", hex.EncodeToString(utxo.Hash))
-		txin := TXin{}
-		txin.Hash = utxo.Hash
-		txin.Index = utxo.Index
-		txin.Sequence = uint32(0xffffffff)
-		txin.PrevScriptPubkey = utxo.Script
-		txin.CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-			return CreateStandardScriptSig(rawTransaction, txKey)
-		}
-
-		txout := TXout{}
-		txout.Value = utxo.Amount - 1000000
-		txout.Script, err = CreateStandardScriptPubkey("n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy")
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		tx := TX{}
-		tx.Txin = []*TXin{&txin}
-		tx.Txout = []*TXout{&txout}
-		tx.Locktime = 0
-
-		rawtx, err := tx.MakeTX()
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		txHash, err := s.SendTX(rawtx)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		logging.Println(hex.EncodeToString(txHash))
-	}
 }
 
 func TestRedeemScript(t *testing.T) {
@@ -257,17 +224,17 @@ func TestRedeemScript(t *testing.T) {
 	txin.Sequence = uint32(0xffffffff)
 	adr, _ := txkey.Pub.GetAddress()
 	logging.Println("adr", adr)
-	txin.PrevScriptPubkey, err = CreateStandardScriptPubkey(adr)
+	txin.PrevScriptPubkey, err = createP2PKHScriptPubkey(adr)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
 	txin.CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-		return CreateStandardScriptSig(rawTransaction, txkey)
+		return createP2PKHScriptSig(rawTransaction, txkey)
 	}
 
 	txout := TXout{}
 	txout.Value = 65600
-	txout.Script = rs.GetSriptPubKeyForFund()
+	txout.ScriptPubkey = rs.createSriptPubkey()
 	tx := TX{}
 	tx.Txin = []*TXin{&txin}
 	tx.Txout = []*TXout{&txout}
@@ -284,7 +251,6 @@ func TestRedeemScript(t *testing.T) {
 
 	//spend the fund
 	inputTX = "02b082113e35d5386285094c2829e7e2963fa0b5369fb7f4b79c4c90877dcd3d"
-	_ = "18tiB1yNTzJMCg6bQS1Eh29dvJngq8QTfx"
 	pks = []string{
 		"5JruagvxNLXTnkksyLMfgFgf3CagJ3Ekxu5oGxpTm5mPfTAPez3",
 		"5JjHVMwJdjPEPQhq34WMUhzLcEd4SD7HgZktEh8WHstWcCLRceV",
@@ -316,7 +282,7 @@ func TestRedeemScript(t *testing.T) {
 
 	txout2 := TXout{}
 	txout2.Value = 55600
-	txout2.Script, err = CreateStandardScriptPubkey("18tiB1yNTzJMCg6bQS1Eh29dvJngq8QTfx")
+	txout2.ScriptPubkey, err = createP2PKHScriptPubkey("18tiB1yNTzJMCg6bQS1Eh29dvJngq8QTfx")
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -325,8 +291,19 @@ func TestRedeemScript(t *testing.T) {
 	tx2.Txout = []*TXout{&txout2}
 	tx2.Locktime = 0
 
+	rawtx = tx2.getRawTransactionHash(0)
+
+	sign1, err := keys[0].Priv.Sign(rawtx)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	sign2, err := keys[1].Priv.Sign(rawtx)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
 	txin2.CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-		return rs.CreateScriptSig(rawTransaction, keys)
+		return rs.createScriptSig([][]byte{sign1, sign2})
 	}
 
 	rawtx, err = tx2.MakeTX()
@@ -339,6 +316,10 @@ func TestRedeemScript(t *testing.T) {
 }
 
 func TestMultisig(t *testing.T) {
+	service, err := SelectService(true)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 	wif := "928Qr9J5oAC6AYieWJ3fG3dZDjuC7BFVUqgu4GsvRVpoXiTaJJf"
 	//n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy
 	txKey, err := GetKeyFromWIF(wif)
@@ -365,107 +346,55 @@ func TestMultisig(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	txs, err := s.GetUTXO(adr)
+	txs, err := s.GetUTXO(adr, nil)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	var utxo *UTXO
-	logging.Println("UTXO:")
+	logging.Println("UTXO of ", adr)
 	for _, tx := range txs {
 		logging.Println("hash", hex.EncodeToString(tx.Hash))
 		logging.Println("amount", tx.Amount)
 		logging.Println("index", tx.Index)
 		logging.Println("script", hex.EncodeToString(tx.Script))
-		if tx.Amount > 1500000 && bytes.Compare(tx.Hash, usedTX1) != 0 {
-			utxo = tx
-			usedTX2 = tx.Hash
-		}
 	}
+	//Create a fund.
 	rs, err := NewRedeemScript(2, []*PublicKey{txKey.Pub, txKey2.Pub, txKey3.Pub})
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	logging.Println("P2SH address", rs.GetAddress())
-	logging.Println("hex", hex.EncodeToString(rs.GetHash()))
-	if utxo != nil {
-		logging.Println("using tx", hex.EncodeToString(utxo.Hash))
-		//Create a fund.
-		txin := TXin{}
-		txin.Hash = utxo.Hash
-		txin.Index = utxo.Index
-		txin.Sequence = uint32(0xffffffff)
-		txin.PrevScriptPubkey = utxo.Script
-		txin.CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-			return CreateStandardScriptSig(rawTransaction, txKey)
-		}
-
-		txout := TXout{}
-		txout.Value = utxo.Amount - 1000000
-		txout.Script = rs.GetSriptPubKeyForFund()
-		tx := TX{}
-		tx.Txin = []*TXin{&txin}
-		tx.Txout = []*TXout{&txout}
-		tx.Locktime = 0
-
-		rawtx, err := tx.MakeTX()
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-
-		txHash, err := s.SendTX(rawtx)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		logging.Println(hex.EncodeToString(txHash))
-	}
-	txs, err = s.GetUTXO(rs.GetAddress())
+	_, err = rs.Pay([]*Key{txKey}, 5000000, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	utxo = nil
-	logging.Println("UTXO:")
+
+	txs, err = s.GetUTXO(rs.GetAddress(), nil)
+	sort.Sort(UTXOs(txs))
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	logging.Println("UTXO of", rs.GetAddress())
 	for _, tx := range txs {
 		logging.Println("hash", hex.EncodeToString(tx.Hash))
 		logging.Println("amount", tx.Amount)
 		logging.Println("index", tx.Index)
 		logging.Println("script", hex.EncodeToString(tx.Script))
-		if tx.Amount > 1500000 {
-			utxo = tx
-		}
 	}
-	if utxo != nil {
-		//spend the fund
-		txin2 := TXin{}
-		txin2.Hash = utxo.Hash
-		txin2.Index = utxo.Index
-		txin2.Sequence = uint32(0xffffffff)
-		txin2.PrevScriptPubkey = rs.Script
 
-		txout2 := TXout{}
-		txout2.Value = utxo.Amount - 1000000
-		txout2.Script, err = CreateStandardScriptPubkey("n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy")
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		tx2 := TX{}
-		tx2.Txin = []*TXin{&txin2}
-		tx2.Txout = []*TXout{&txout2}
-		tx2.Locktime = 0
-
-		keys := []*Key{txKey, txKey3}
-
-		txin2.CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-			return rs.CreateScriptSig(rawTransaction, keys)
-		}
-
-		rawtx, err := tx2.MakeTX()
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		txHash, err := s.SendTX(rawtx)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		logging.Println(hex.EncodeToString(txHash))
+	//spend the fund
+	rawtx, tx, err := rs.CreateRawTransactionHashed(map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": txs[0].Amount - fee}, service)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	sign1, err := txKey2.Priv.Sign(rawtx)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	sign2, err := txKey3.Priv.Sign(rawtx)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	_, err = rs.Spend(tx, [][]byte{sign1, sign2}, service)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 }

@@ -37,6 +37,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -53,7 +54,7 @@ type RedeemScript struct {
 }
 
 // GetHash creates hash of redeem script.
-func (rs *RedeemScript) GetHash() []byte {
+func (rs *RedeemScript) getHash() []byte {
 	shadPublicKeyBytes := sha256.Sum256(rs.Script)
 	ripeHash := ripemd160.New()
 	ripeHash.Write(shadPublicKeyBytes[:])
@@ -66,16 +67,16 @@ func (rs *RedeemScript) GetAddress() string {
 	var prefix byte
 
 	if rs.PublicKeys[0].isTestnet {
-		prefix = 196
+		prefix = 0xc4
 	} else {
-		prefix = 5
+		prefix = 0x5
 	}
-	return base58check.Encode(prefix, rs.GetHash())
+	return base58check.Encode(prefix, rs.getHash())
 }
 
-// GetSriptPubKeyForFund creates a scriptPubKey for a P2SH transaction given the redeemScript struct.
-func (rs *RedeemScript) GetSriptPubKeyForFund() []byte {
-	redeemScriptHash := rs.GetHash()
+// createSriptPubkey creates a scriptPubKey for a P2SH transaction given the redeemScript struct.
+func (rs *RedeemScript) createSriptPubkey() []byte {
+	redeemScriptHash := rs.getHash()
 	//P2SH scriptSig format:
 	//<OP_HASH160> <Hash160(redeemScript)> <OP_EQUAL>
 	var scriptPubKey bytes.Buffer
@@ -127,8 +128,8 @@ func NewRedeemScript(m int, publicKeys []*PublicKey) (*RedeemScript, error) {
 }
 
 // CreateScriptSig signs a raw transaction with keys.
-func (rs *RedeemScript) CreateScriptSig(rawTransactionHashed []byte, keys []*Key) ([]byte, error) {
-	if len(keys) != rs.M {
+func (rs *RedeemScript) createScriptSig(signs [][]byte) ([]byte, error) {
+	if len(signs) != rs.M {
 		return nil, fmt.Errorf("number of signatures must be", rs.M)
 	}
 	//redeemScript length. To allow redeemScript > 255 bytes, we use OP_PUSHDATA2 and use two bytes to specify length
@@ -145,11 +146,7 @@ func (rs *RedeemScript) CreateScriptSig(rawTransactionHashed []byte, keys []*Key
 	//Create scriptSig
 	var buffer bytes.Buffer
 	buffer.WriteByte(op0) //OP_0 for Multisig off-by-one error
-	for _, key := range keys {
-		signature, err := key.Priv.Sign(rawTransactionHashed)
-		if err != nil {
-			return nil, err
-		}
+	for _, signature := range signs {
 		buffer.WriteByte(byte(len(signature) + 1)) //PUSH each signature. Add one for hash type byte
 		buffer.Write(signature)                    // Signature bytes
 		buffer.WriteByte(0x1)                      //hash type
@@ -158,4 +155,100 @@ func (rs *RedeemScript) CreateScriptSig(rawTransactionHashed []byte, keys []*Key
 	buffer.Write(redeemScriptLengthBytes) //PUSH redeemScript
 	buffer.Write(rs.Script)               //redeemScript
 	return buffer.Bytes(), nil
+}
+
+func (rs *RedeemScript) getMultisigTX(keys []*Key, amount uint64, service Service) (*TX, error) {
+	var err error
+	tx := TX{}
+	tx.Locktime = 0
+	var remain uint64
+	tx.Txin, remain, err = setupP2PKHTXin(keys, amount+fee, service)
+	if err != nil {
+		return nil, err
+	}
+
+	adr, _ := keys[0].Pub.GetAddress()
+	tx.Txout, err = setupP2PKHTXout(map[string]uint64{adr: remain})
+	if err != nil {
+		return nil, err
+	}
+
+	txout := TXout{}
+	txout.Value = amount
+	txout.ScriptPubkey = rs.createSriptPubkey()
+	tx.Txout = append(tx.Txout, &txout)
+
+	return &tx, nil
+}
+
+//Pay pays to a fund.
+func (rs *RedeemScript) Pay(keys []*Key, amount uint64, service Service) ([]byte, error) {
+	tx, err := rs.getMultisigTX(keys, amount, service)
+	rawtx, err := tx.MakeTX()
+	if err != nil {
+		return nil, err
+	}
+	txHash, err := service.SendTX(rawtx)
+	if err != nil {
+		return nil, err
+	}
+	logging.Println("tx hash", hex.EncodeToString(txHash))
+	return txHash, nil
+}
+
+//CreateRawTransactionHashed returns a hash of raw transaction for signing.
+func (rs *RedeemScript) CreateRawTransactionHashed(addresses map[string]uint64, service Service) ([]byte, *TX, error) {
+	tx := TX{}
+	tx.Locktime = 0
+
+	var totalAmount uint64
+	for _, amount := range addresses {
+		totalAmount += amount
+	}
+
+	var utxo *UTXO
+	txs, err := service.GetUTXO(rs.GetAddress(), nil)
+	for _, tx := range txs {
+		if tx.Amount >= totalAmount+fee {
+			utxo = tx
+			logging.Println("using tx:", hex.EncodeToString(utxo.Hash))
+			break
+		}
+	}
+	if utxo == nil {
+		return nil, nil, errors.New("no utxo contains sufficient coin")
+	}
+	txin := TXin{}
+	txin.Hash = utxo.Hash
+	txin.Index = utxo.Index
+	txin.Sequence = uint32(0xffffffff)
+	txin.PrevScriptPubkey = rs.Script
+	tx.Txin = []*TXin{&txin}
+
+	tx.Txout, err = setupP2PKHTXout(addresses)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return tx.getRawTransactionHash(0), &tx, nil
+}
+
+//Spend spend the fund.
+func (rs *RedeemScript) Spend(tx *TX, signs [][]byte, service Service) ([]byte, error) {
+	if len(signs) != rs.M {
+		return nil, fmt.Errorf("number of signatures must be", rs.M)
+	}
+	tx.Txin[0].CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
+		return rs.createScriptSig(signs)
+	}
+	rawtx, err := tx.MakeTX()
+	if err != nil {
+		return nil, err
+	}
+	txHash, err := service.SendTX(rawtx)
+	if err != nil {
+		return nil, err
+	}
+	logging.Println("tx hash", hex.EncodeToString(txHash))
+	return txHash, nil
 }

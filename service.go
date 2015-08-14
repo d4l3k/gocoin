@@ -29,25 +29,70 @@
 
 package gocoin
 
+import "math/rand"
+
 //UTXO represents unspent transaction outputs.
 type UTXO struct {
 	Hash   []byte
 	Amount uint64
 	Index  uint32
 	Script []byte
+	Age    uint64
+	Key    *Key
 }
+
+//UTXOs is for sorting UTXO
+type UTXOs []*UTXO
+
+var spentTX = make(map[[32]byte]bool)
 
 //Service is for getting UTXO or sending transactions , basically by using WEB API.
 type Service interface {
 	GetServiceName() string
-	GetUTXO(string) ([]*UTXO, error)
+	GetUTXO(string, *Key) (UTXOs, error)
 	SendTX([]byte) ([]byte, error)
 }
 
+//TestServices is an array containing generator of Services for testnet
 var TestServices = []func() (Service, error){
 	NewBlockrServiceForTest,
 }
 
+//TestServices is an array containing generator of Services
 var Services = []func() (Service, error){
 	NewBlockrService,
+}
+
+//to sort UTXO
+
+//Len returns length of UTXO
+func (us UTXOs) Len() int {
+	return len(us)
+}
+
+//Swap swaps UTXO
+func (us UTXOs) Swap(i, j int) {
+	us[i], us[j] = us[j], us[i]
+}
+
+//Less returns true is age is smaller.
+func (us UTXOs) Less(i, j int) bool {
+	return us[i].Amount < us[j].Amount
+}
+
+//SelectService returns a service randomly.
+func SelectService(isTestnet bool) (Service, error) {
+	n := rand.Int() % len(Services)
+	if isTestnet {
+		return TestServices[n]()
+	}
+	return Services[n]()
+}
+
+//SetTXSpent sets  tx hash is already spent.
+func SetTXSpent(hash []byte) {
+	var h [32]byte
+	copy(h[:], hash)
+
+	spentTX[h] = false
 }

@@ -36,8 +36,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-
-	"github.com/StorjPlatform/gocoin/base58check"
 )
 
 //TXin represents tx input of a transaction.
@@ -52,8 +50,8 @@ type TXin struct {
 
 //TXout represents tx output of a transaction.
 type TXout struct {
-	Value  uint64
-	Script []byte
+	Value        uint64
+	ScriptPubkey []byte
 }
 
 //TX represents transaction.
@@ -62,6 +60,10 @@ type TX struct {
 	Txout    []*TXout
 	Locktime uint32
 }
+
+const (
+	fee = 0.0002 * satoshi
+)
 
 //MakeTX makes transaction and return tx hex string(not send)
 func (tx *TX) MakeTX() ([]byte, error) {
@@ -85,62 +87,6 @@ func (tx *TX) MakeTX() ([]byte, error) {
 	logging.Println(finalTransactionHex)
 
 	return finalTransaction, nil
-}
-
-//CreateStandardScriptPubkey creates standard script pubkey .
-func CreateStandardScriptPubkey(publicKeyBase58 string) ([]byte, error) {
-	publicKeyBytes, _, err := base58check.Decode(publicKeyBase58)
-	if err != nil {
-		return nil, err
-	}
-
-	var scriptPubKey bytes.Buffer
-	scriptPubKey.WriteByte(opDUP)
-	scriptPubKey.WriteByte(opHASH160)
-	scriptPubKey.WriteByte(byte(len(publicKeyBytes))) //PUSH
-	scriptPubKey.Write(publicKeyBytes)
-	scriptPubKey.WriteByte(opEQUALVERIFY)
-	scriptPubKey.WriteByte(opCHECKSIG)
-	script := scriptPubKey.Bytes()
-	return script, nil
-}
-
-//CreateStandardScript creates standard scriptsig and fills TXin.Script.
-func CreateStandardScriptSig(rawTransactionHashed []byte, key *Key) ([]byte, error) {
-
-	publicKeyBytes := key.Pub.key.SerializeUncompressed()
-
-	//Sign the raw transaction
-	sig, err := key.Priv.key.Sign(rawTransactionHashed)
-	if err != nil {
-		return nil, errors.New("failed to sign transaction")
-	}
-	signedTransaction := sig.Serialize()
-
-	//Verify that it worked.
-	verified := sig.Verify(rawTransactionHashed[:], key.Pub.key)
-	if !verified {
-		return nil, errors.New("Failed to sign transaction")
-	}
-
-	//+1 for hashCodeType
-	signedTransactionLength := byte(len(signedTransaction) + 1)
-
-	var publicKeyBuffer bytes.Buffer
-	publicKeyBuffer.Write(publicKeyBytes)
-	pubKeyLength := byte(len(publicKeyBuffer.Bytes()))
-
-	var buffer bytes.Buffer
-	buffer.WriteByte(signedTransactionLength)
-	buffer.Write(signedTransaction)
-	buffer.WriteByte(0x01) //hashCodeType
-	buffer.WriteByte(pubKeyLength)
-	buffer.Write(publicKeyBuffer.Bytes())
-
-	scriptSig := buffer.Bytes()
-
-	return scriptSig, nil
-	//Return the final transaction
 }
 
 func (tx *TX) getRawTransactionHash(numSign int) []byte {
@@ -222,10 +168,10 @@ func (tx *TX) createRawTransaction(numSign int) []byte {
 		buffer.Write(satoshiBytes)
 
 		//Script sig length
-		scriptSigLength := len(out.Script)
+		scriptSigLength := len(out.ScriptPubkey)
 		buffer.Write(toVI(uint64(scriptSigLength)))
 
-		buffer.Write(out.Script)
+		buffer.Write(out.ScriptPubkey)
 	}
 
 	//Lock time field

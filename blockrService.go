@@ -73,7 +73,8 @@ type BlockrService struct {
 
 //NewBlockrServiceForTest creates BlockrService struct for test.
 func NewBlockrServiceForTest() (Service, error) {
-	return &BlockrService{isTestnet: true}, nil
+	b := &BlockrService{isTestnet: true}
+	return b, nil
 }
 
 //NewBlockrService creates BlockrService struct for not test.
@@ -120,7 +121,7 @@ func (b *BlockrService) SendTX(data []byte) ([]byte, error) {
 }
 
 //GetUTXO gets unspent transaction outputs by using Blockr.io.
-func (b *BlockrService) GetUTXO(addr string) ([]*UTXO, error) {
+func (b *BlockrService) GetUTXO(addr string, key *Key) (UTXOs, error) {
 	var btc string
 
 	if b.isTestnet {
@@ -145,10 +146,20 @@ func (b *BlockrService) GetUTXO(addr string) ([]*UTXO, error) {
 	}
 	if u.Status != "success" {
 		return nil, errors.New("blockr returns " + u.Message)
-
 	}
-	utxos := make([]*UTXO, len(u.Data.Unspent))
-	for i, tx := range u.Data.Unspent {
+
+	utxos := make(UTXOs, 0, len(u.Data.Unspent))
+	for _, tx := range u.Data.Unspent {
+		alreadySpent := false
+		for h := range spentTX {
+			if tx.Tx == hex.EncodeToString(h[:]) {
+				alreadySpent = true
+			}
+		}
+		if alreadySpent {
+			continue
+		}
+
 		utxo := UTXO{}
 		amount, err := strconv.ParseFloat(tx.Amount, 64)
 		if err != nil {
@@ -164,7 +175,9 @@ func (b *BlockrService) GetUTXO(addr string) ([]*UTXO, error) {
 		if err != nil {
 			return nil, err
 		}
-		utxos[i] = &utxo
+		utxo.Age = uint64(tx.Confirmations)
+		utxo.Key = key
+		utxos = append(utxos, &utxo)
 	}
 
 	return utxos, nil

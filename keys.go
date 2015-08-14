@@ -98,6 +98,7 @@ type Key struct {
 //6f is the testnet prefix
 //00 is the mainnet prefix
 
+//GetPublicKey returns PublicKey struct using public key hex string.
 func GetPublicKey(pubKeyByte []byte, isTestnet bool) (*PublicKey, error) {
 	secp256k1 := btcec.S256()
 	key, err := btcec.ParsePubKey(pubKeyByte, secp256k1)
@@ -114,7 +115,6 @@ func GetKeyFromWIF(wif string) (*Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	logging.Println(privateKeyBytes)
 
 	pub := PublicKey{}
 	priv := PrivateKey{}
@@ -171,7 +171,7 @@ func GenerateKey(flagTestnet bool) (*Key, error) {
 	return &key, nil
 }
 
-//GetWIFAddress returns WIF format string from PrivateKey
+//Sing sign data.
 func (priv *PrivateKey) Sign(hash []byte) ([]byte, error) {
 	sig, err := priv.key.Sign(hash)
 	if err != nil {
@@ -214,6 +214,7 @@ func (pub *PublicKey) GetAddress() (string, []byte) {
 	return publicKeyEncoded, ripeHashedBytes
 }
 
+//IsTestnet returns true if addr is for testnet.
 func IsTestnet(addr string) (bool, error) {
 	_, prefix, err := base58check.Decode(addr)
 	if err != nil {

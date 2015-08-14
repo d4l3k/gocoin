@@ -148,4 +148,6 @@ const (
 	op14                  = byte(94)
 	op15                  = byte(95)
 	op16                  = byte(96)
+
+	satoshi = 100000000
 )
