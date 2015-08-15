@@ -171,7 +171,7 @@ func GenerateKey(flagTestnet bool) (*Key, error) {
 	return &key, nil
 }
 
-//Sing sign data.
+//Sign sign data.
 func (priv *PrivateKey) Sign(hash []byte) ([]byte, error) {
 	sig, err := priv.key.Sign(hash)
 	if err != nil {

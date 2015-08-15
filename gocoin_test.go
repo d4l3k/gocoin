@@ -471,12 +471,12 @@ func TestMicro(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	_, err = payee.SendLastTX()
+	_, err = payee.SendLastPayment()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-//	_, err = payer.SendRefund()
-//	if err != nil {
-//		t.Errorf(err.Error())
-//	}
+	//	_, err = payer.SendRefund()
+	//	if err != nil {
+	//		t.Errorf(err.Error())
+	//	}
 }

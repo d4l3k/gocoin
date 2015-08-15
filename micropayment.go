@@ -222,8 +222,8 @@ func (m *Micropayee) IncrementPayment(increment uint64, sign []byte) error {
 	return nil
 }
 
-//SendLastTX sends last incremented tx and returns tx hash.
-func (m *Micropayee) SendLastTX() ([]byte, error) {
+//SendLastPayment sends last incremented tx and returns tx hash.
+func (m *Micropayee) SendLastPayment() ([]byte, error) {
 	if m.lastTX == nil {
 		return nil, errors.New("receive incremented refund tx first")
 	}
@@ -242,7 +242,8 @@ func (m *Micropayee) SendLastTX() ([]byte, error) {
 	return txHash, nil
 }
 
-//SendLastTX sends last incremented tx and returns tx hash.
+//SendRefund sends refunt tx and returns tx hash.
+//bond tx will be locked after sending thye refund (?).
 func (m *Micropayer) SendRefund() ([]byte, error) {
 	if m.refund == nil {
 		return nil, errors.New("receive refund signature first")

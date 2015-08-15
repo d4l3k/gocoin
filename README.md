@@ -134,7 +134,7 @@ func main(){
 	payee.IncrementPayment(0.001*gocoin.BTC, signIP) //return an error if payer's sig is invalid
 	//more payments
 
-	payee.SendLastTX()
+	payee.SendLastPayment()
 	//or
 	//	payer.SendRefund() after locktime
 
