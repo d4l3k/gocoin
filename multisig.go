@@ -192,7 +192,7 @@ func (rs *RedeemScript) getMultisigTX(keys []*Key, amount uint64, service Servic
 	}
 
 	adr, _ := keys[0].Pub.GetAddress()
-	tx.Txout, err = setupP2PKHTXout(map[string]uint64{adr: remain})
+	tx.Txout, err = setupP2PKHTXout([]*Amounts{&Amounts{adr, remain}})
 	if err != nil {
 		return nil, err
 	}
@@ -221,13 +221,13 @@ func (rs *RedeemScript) Pay(keys []*Key, amount uint64, service Service) ([]byte
 }
 
 //CreateRawTransactionHashed returns a hash of raw transaction for signing.
-func (rs *RedeemScript) CreateRawTransactionHashed(addresses map[string]uint64, service Service) ([]byte, *TX, error) {
+func (rs *RedeemScript) CreateRawTransactionHashed(addresses []*Amounts, service Service) ([]byte, *TX, error) {
 	tx := TX{}
 	tx.Locktime = 0
 
 	var totalAmount uint64
 	for _, amount := range addresses {
-		totalAmount += amount
+		totalAmount += amount.Amount
 	}
 
 	var utxo *UTXO

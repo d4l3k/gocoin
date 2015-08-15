@@ -86,7 +86,7 @@ func NewMicropayee(key *Key, publicKey *PublicKey, service Service) (*Micropayee
 	return &m, nil
 }
 
-func (m *micropayment) createRefund(amount map[string]uint64, lockTime *time.Time, payerSign []byte, payeeSign []byte) ([]byte, *TX, error) {
+func (m *micropayment) createRefund(amount []*Amounts, lockTime *time.Time, payerSign []byte, payeeSign []byte) ([]byte, *TX, error) {
 	var err error
 	refund := &TX{}
 	txin := TXin{}
@@ -114,14 +114,17 @@ func (m *micropayment) createRefund(amount map[string]uint64, lockTime *time.Tim
 	if payerSign == nil && payeeSign == nil {
 		return mySign, nil, nil
 	}
+	var signPayee, signPayer []byte
 	if payerSign == nil {
-		payerSign = mySign
+		signPayer = mySign
+		signPayee = payeeSign
 	}
 	if payeeSign == nil {
-		payeeSign = mySign
+		signPayer = payerSign
+		signPayee = mySign
 	}
 	refund.Txin[0].CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-		return m.rs.createScriptSig(rawTransaction, [][]byte{payerSign, payeeSign})
+		return m.rs.createScriptSig(rawTransaction, [][]byte{signPayer, signPayee})
 	}
 	return mySign, refund, nil
 }
@@ -149,7 +152,8 @@ func (m *Micropayee) SignToRefund(txHash []byte, amount uint64, lockTime *time.T
 	m.bondHash = txHash
 	m.TotalAmount = amount
 	addr, _ := m.rs.PublicKeys[0].GetAddress()
-	sign, _, err := m.createRefund(map[string]uint64{addr: amount}, lockTime, nil, nil)
+	amounts := []*Amounts{&Amounts{addr, amount}}
+	sign, _, err := m.createRefund(amounts, lockTime, nil, nil)
 	return sign, err
 }
 
@@ -161,7 +165,8 @@ func (m *Micropayer) SendBond(lockTime *time.Time, sign []byte) ([]byte, error) 
 	}
 	m.Locktime = lockTime
 	addr, _ := m.key.Pub.GetAddress()
-	_, m.refund, err = m.createRefund(map[string]uint64{addr: m.TotalAmount}, lockTime, nil, sign)
+	amounts := []*Amounts{&Amounts{addr, m.TotalAmount}}
+	_, m.refund, err = m.createRefund(amounts, lockTime, nil, sign)
 	txRefund, err := m.refund.MakeTX()
 	if err != nil {
 		return nil, err
@@ -197,10 +202,8 @@ func (m *Micropayer) SignToIncrementedPayment(increment uint64) ([]byte, error) 
 	m.Paied += increment
 	payer, _ := m.rs.PublicKeys[0].GetAddress()
 	payee, _ := m.rs.PublicKeys[1].GetAddress()
-	amount := make(map[string]uint64)
-	amount[payer] = m.TotalAmount - m.Paied
-	amount[payee] = m.Paied
-	sign, _, err := m.createRefund(amount, nil, nil, nil)
+	amounts := []*Amounts{&Amounts{payer, m.TotalAmount - m.Paied}, &Amounts{payee, m.Paied}}
+	sign, _, err := m.createRefund(amounts, nil, nil, nil)
 	logging.Println("amount paied", m.Paied)
 	return sign, err
 }
@@ -217,15 +220,14 @@ func (m *Micropayee) IncrementPayment(increment uint64, sign []byte) error {
 
 	payer, _ := m.rs.PublicKeys[0].GetAddress()
 	payee, _ := m.rs.PublicKeys[1].GetAddress()
-	amount := make(map[string]uint64)
-	amount[payer] = m.TotalAmount - m.Paied - increment
-	amount[payee] = m.Paied + increment
-	_, lastTX, err := m.createRefund(amount, nil, sign, nil)
+	amounts := []*Amounts{&Amounts{payer, m.TotalAmount - m.Paied - increment}, &Amounts{payee, m.Paied + increment}}
+	_, lastTX, err := m.createRefund(amounts, nil, sign, nil)
 	if err != nil {
 		return err
 	}
 	_, err = lastTX.MakeTX()
 	if err != nil {
+		logging.Println(err, hex.EncodeToString(sign))
 		return err
 	}
 	m.lastTX = lastTX

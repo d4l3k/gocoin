@@ -155,7 +155,8 @@ func TestSend(t *testing.T) {
 		logging.Println("index", tx.Index)
 		logging.Println("script", hex.EncodeToString(tx.Script))
 	}
-	_, err = Pay([]*Key{txKey}, map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 0.05 * BTC, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * BTC}, service)
+	amounts := []*Amounts{&Amounts{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy", 0.05 * BTC}, &Amounts{"n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi", 0.01 * BTC}}
+	_, err = Pay([]*Key{txKey}, amounts, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -380,7 +381,7 @@ func TestMultisig(t *testing.T) {
 	}
 
 	//spend the fund
-	rawtx, tx, err := rs.CreateRawTransactionHashed(map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": txs[0].Amount - Fee}, service)
+	rawtx, tx, err := rs.CreateRawTransactionHashed([]*Amounts{&Amounts{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy", txs[0].Amount - Fee}}, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -458,11 +459,13 @@ func TestMicro(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+	logging.Println(hex.EncodeToString(signIP))
 	err = payee.IncrementPayment(0.001*BTC, signIP)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 	signIP, err = payer.SignToIncrementedPayment(0.001 * BTC)
+	logging.Println(hex.EncodeToString(signIP))
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

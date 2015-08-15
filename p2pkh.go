@@ -39,6 +39,11 @@ import (
 	"github.com/StorjPlatform/gocoin/base58check"
 )
 
+type Amounts struct {
+	Address string
+	Amount  uint64
+}
+
 //CreateStandardScriptPubkey creates standard script pubkey .
 func createP2PKHScriptPubkey(publicKeyBase58 string) ([]byte, error) {
 	publicKeyBytes, _, err := base58check.Decode(publicKeyBase58)
@@ -120,14 +125,14 @@ func setupP2PKHTXin(keys []*Key, totalAmount uint64, service Service) ([]*TXin, 
 	return nil, amount - totalAmount, errors.New("not enough coin")
 }
 
-func setupP2PKHTXout(addresses map[string]uint64) ([]*TXout, error) {
-	txouts := make([]*TXout, len(addresses))
+func setupP2PKHTXout(amounts []*Amounts) ([]*TXout, error) {
+	txouts := make([]*TXout, len(amounts))
 	var err error
 	var i int
-	for to, amount := range addresses {
+	for _, amount := range amounts {
 		txouts[i] = &TXout{}
-		txouts[i].Value = amount
-		txouts[i].ScriptPubkey, err = createP2PKHScriptPubkey(to)
+		txouts[i].Value = amount.Amount
+		txouts[i].ScriptPubkey, err = createP2PKHScriptPubkey(amount.Address)
 		if err != nil {
 			return nil, err
 		}
@@ -137,12 +142,12 @@ func setupP2PKHTXout(addresses map[string]uint64) ([]*TXout, error) {
 }
 
 //Pay pays in a nomal way.(P2KSH)
-func Pay(keys []*Key, addresses map[string]uint64, service Service) ([]byte, error) {
+func Pay(keys []*Key, addresses []*Amounts, service Service) ([]byte, error) {
 	var err error
 
 	var totalAmount uint64
 	for _, amount := range addresses {
-		totalAmount += amount
+		totalAmount += amount.Amount
 	}
 
 	tx := TX{}
@@ -154,10 +159,16 @@ func Pay(keys []*Key, addresses map[string]uint64, service Service) ([]byte, err
 	}
 
 	adr, _ := keys[0].Pub.GetAddress()
-	if am, exist := addresses[adr]; exist {
-		addresses[adr] = am + remain
-	} else {
-		addresses[adr] = remain
+	exist := false
+	for i, addr := range addresses {
+		if adr == addr.Address {
+			addresses[i].Amount += remain
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		addresses = append(addresses, &Amounts{adr, remain})
 	}
 	tx.Txout, err = setupP2PKHTXout(addresses)
 
