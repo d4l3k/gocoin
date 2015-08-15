@@ -141,6 +141,16 @@ func main(){
 }
 ```
 
+Note:
+
+payer.SendRefund() must be called after locktime.
+
+http://chimera.labs.oreilly.com/books/1234000001802/ch05.html#tx_propagation
+
+>Transactions with locktime specifying a future block or time must be held by the originating system
+>and transmitted to the bitcoin network only after they become valid.
+
+
 # Contribution
 Improvements to the codebase and pull requests are encouraged.
 

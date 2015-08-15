@@ -29,13 +29,12 @@
 package gocoin
 
 import (
+	"bytes"
 	"encoding/hex"
+	"sort"
 	"testing"
 	"time"
 )
-
-/*
-var usedTX1, usedTX2 []byte
 
 func TestKeys2(t *testing.T) {
 	key, err := GenerateKey(true)
@@ -156,7 +155,7 @@ func TestSend(t *testing.T) {
 		logging.Println("index", tx.Index)
 		logging.Println("script", hex.EncodeToString(tx.Script))
 	}
-	_, err = Pay([]*Key{txKey}, map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 0.05 * btc, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * btc}, service)
+	_, err = Pay([]*Key{txKey}, map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 0.05 * BTC, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * BTC}, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -381,7 +380,7 @@ func TestMultisig(t *testing.T) {
 	}
 
 	//spend the fund
-	rawtx, tx, err := rs.CreateRawTransactionHashed(map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": txs[0].Amount - fee}, service)
+	rawtx, tx, err := rs.CreateRawTransactionHashed(map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": txs[0].Amount - Fee}, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -398,7 +397,7 @@ func TestMultisig(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 }
-*/
+
 func TestMicro(t *testing.T) {
 	service, err := SelectService(true)
 	if err != nil {
@@ -447,11 +446,11 @@ func TestMicro(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 	locktime := time.Now().Add(time.Hour)
-	sign, err := payee.SignToRefund(txHash, 0.05*BTC-Fee, uint32(locktime.Unix()))
+	sign, err := payee.SignToRefund(txHash, 0.05*BTC-Fee, &locktime)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	_, err = payer.SendBond(uint32(locktime.Unix()), sign)
+	_, err = payer.SendBond(&locktime, sign)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

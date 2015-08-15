@@ -34,6 +34,7 @@ package gocoin
 import (
 	"encoding/hex"
 	"errors"
+	"time"
 )
 
 type micropayment struct {
@@ -43,6 +44,7 @@ type micropayment struct {
 	bondHash    []byte
 	TotalAmount uint64
 	Paied       uint64
+	Locktime    *time.Time
 }
 
 //Micropayer represents payer of Micropayment.
@@ -84,16 +86,17 @@ func NewMicropayee(key *Key, publicKey *PublicKey, service Service) (*Micropayee
 	return &m, nil
 }
 
-func (m *micropayment) createRefund(amount map[string]uint64, lockTime uint32, payerSign []byte, payeeSign []byte) ([]byte, *TX, error) {
+func (m *micropayment) createRefund(amount map[string]uint64, lockTime *time.Time, payerSign []byte, payeeSign []byte) ([]byte, *TX, error) {
 	var err error
 	refund := &TX{}
-	refund.Locktime = lockTime
 	txin := TXin{}
 	txin.Hash = m.bondHash
 	txin.Index = 1
-	if lockTime == 0 {
+	if lockTime == nil {
+		refund.Locktime = 0
 		txin.Sequence = uint32(0xffffffff)
 	} else {
+		refund.Locktime = uint32(lockTime.Unix())
 		txin.Sequence = 0
 	}
 	txin.PrevScriptPubkey = m.rs.Script
@@ -126,6 +129,7 @@ func (m *micropayment) createRefund(amount map[string]uint64, lockTime uint32, p
 //CreateBond creates bond and return its hash.
 func (m *Micropayer) CreateBond(keys []*Key, amount uint64) ([]byte, error) {
 	var err error
+
 	m.TotalAmount = amount - Fee
 	m.bond, err = m.rs.getMultisigTX(keys, amount, m.service)
 	if err != nil {
@@ -140,7 +144,8 @@ func (m *Micropayer) CreateBond(keys []*Key, amount uint64) ([]byte, error) {
 }
 
 //SignToRefund create signature of refund tx.
-func (m *Micropayee) SignToRefund(txHash []byte, amount uint64, lockTime uint32) ([]byte, error) {
+func (m *Micropayee) SignToRefund(txHash []byte, amount uint64, lockTime *time.Time) ([]byte, error) {
+	m.Locktime = lockTime
 	m.bondHash = txHash
 	m.TotalAmount = amount
 	addr, _ := m.rs.PublicKeys[0].GetAddress()
@@ -149,12 +154,12 @@ func (m *Micropayee) SignToRefund(txHash []byte, amount uint64, lockTime uint32)
 }
 
 //SendBond send bond and refunds and returns bond tx hash.
-func (m *Micropayer) SendBond(lockTime uint32, sign []byte) ([]byte, error) {
+func (m *Micropayer) SendBond(lockTime *time.Time, sign []byte) ([]byte, error) {
 	var err error
 	if m.bond == nil {
 		return nil, errors.New("create bond first")
 	}
-
+	m.Locktime = lockTime
 	addr, _ := m.key.Pub.GetAddress()
 	_, m.refund, err = m.createRefund(map[string]uint64{addr: m.TotalAmount}, lockTime, nil, sign)
 	txRefund, err := m.refund.MakeTX()
@@ -186,13 +191,16 @@ func (m *Micropayer) SignToIncrementedPayment(increment uint64) ([]byte, error) 
 	if m.refund == nil {
 		return nil, errors.New("send bond first")
 	}
+	if time.Now().After(*m.Locktime) {
+		return nil, errors.New("already passed locktime")
+	}
 	m.Paied += increment
 	payer, _ := m.rs.PublicKeys[0].GetAddress()
 	payee, _ := m.rs.PublicKeys[1].GetAddress()
 	amount := make(map[string]uint64)
 	amount[payer] = m.TotalAmount - m.Paied
 	amount[payee] = m.Paied
-	sign, _, err := m.createRefund(amount, 0, nil, nil)
+	sign, _, err := m.createRefund(amount, nil, nil, nil)
 	logging.Println("amount paied", m.Paied)
 	return sign, err
 }
@@ -203,12 +211,16 @@ func (m *Micropayee) IncrementPayment(increment uint64, sign []byte) error {
 	if m.bondHash == nil {
 		return errors.New("receive refund tx first")
 	}
+	if time.Now().After(*m.Locktime) {
+		return errors.New("already passed locktime")
+	}
+
 	payer, _ := m.rs.PublicKeys[0].GetAddress()
 	payee, _ := m.rs.PublicKeys[1].GetAddress()
 	amount := make(map[string]uint64)
 	amount[payer] = m.TotalAmount - m.Paied - increment
 	amount[payee] = m.Paied + increment
-	_, lastTX, err := m.createRefund(amount, 0, sign, nil)
+	_, lastTX, err := m.createRefund(amount, nil, sign, nil)
 	if err != nil {
 		return err
 	}
@@ -239,6 +251,7 @@ func (m *Micropayee) SendLastPayment() ([]byte, error) {
 	m.bondHash = nil
 	m.TotalAmount = 0
 	m.Paied = 0
+	m.Locktime = nil
 	return txHash, nil
 }
 
@@ -248,6 +261,10 @@ func (m *Micropayer) SendRefund() ([]byte, error) {
 	if m.refund == nil {
 		return nil, errors.New("receive refund signature first")
 	}
+	if time.Now().Before(*m.Locktime) {
+		return nil, errors.New("not passed locktime yet")
+	}
+
 	rawtx, err := m.refund.MakeTX()
 	if err != nil {
 		return nil, err
@@ -261,5 +278,6 @@ func (m *Micropayer) SendRefund() ([]byte, error) {
 	m.refund = nil
 	m.bondHash = nil
 	m.TotalAmount = 0
+	m.Locktime = nil
 	return txHash, nil
 }
