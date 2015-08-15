@@ -69,12 +69,6 @@ func createP2PKHScriptSig(rawTransactionHashed []byte, key *Key) ([]byte, error)
 	}
 	signedTransaction := sig.Serialize()
 
-	//	//Verify that it worked.
-	//	verified := sig.Verify(rawTransactionHashed[:], key.Pub.key)
-	//	if !verified {
-	//		return nil, errors.New("Failed to sign transaction")
-	//	}
-
 	//+1 for hashCodeType
 	signedTransactionLength := byte(len(signedTransaction) + 1)
 
@@ -154,7 +148,7 @@ func Pay(keys []*Key, addresses map[string]uint64, service Service) ([]byte, err
 	tx := TX{}
 	tx.Locktime = 0
 	var remain uint64
-	tx.Txin, remain, err = setupP2PKHTXin(keys, totalAmount+fee, service)
+	tx.Txin, remain, err = setupP2PKHTXin(keys, totalAmount+Fee, service)
 	if err != nil {
 		return nil, err
 	}

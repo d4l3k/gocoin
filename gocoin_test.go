@@ -29,12 +29,12 @@
 package gocoin
 
 import (
-	"bytes"
 	"encoding/hex"
-	"sort"
 	"testing"
+	"time"
 )
 
+/*
 var usedTX1, usedTX2 []byte
 
 func TestKeys2(t *testing.T) {
@@ -156,7 +156,7 @@ func TestSend(t *testing.T) {
 		logging.Println("index", tx.Index)
 		logging.Println("script", hex.EncodeToString(tx.Script))
 	}
-	_, err = Pay([]*Key{txKey}, map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 0.05 * satoshi, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * satoshi}, service)
+	_, err = Pay([]*Key{txKey}, map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 0.05 * btc, "n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * btc}, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -303,7 +303,7 @@ func TestRedeemScript(t *testing.T) {
 	}
 
 	txin2.CreateScriptSig = func(rawTransaction []byte) ([]byte, error) {
-		return rs.createScriptSig([][]byte{sign1, sign2})
+		return rs.createScriptSig(rawTransaction, [][]byte{sign1, nil, sign2})
 	}
 
 	rawtx, err = tx2.MakeTX()
@@ -393,8 +393,90 @@ func TestMultisig(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	_, err = rs.Spend(tx, [][]byte{sign1, sign2}, service)
+	_, err = rs.Spend(tx, [][]byte{nil, sign1, sign2}, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
+}
+*/
+func TestMicro(t *testing.T) {
+	service, err := SelectService(true)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	wif := "928Qr9J5oAC6AYieWJ3fG3dZDjuC7BFVUqgu4GsvRVpoXiTaJJf"
+	//n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy
+	txKey, err := GetKeyFromWIF(wif)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	adr, _ := txKey.Pub.GetAddress()
+	logging.Println("address for tx=", adr)
+
+	wif2 := "92DUfNPumHzpCkKjmeqiSEDB1PU67eWbyUgYHhK9ziM7NEbqjnK"
+	//ms5repuZHtBrKRE93FdWqz8JEo6d8ikM3k
+	txKey2, err := GetKeyFromWIF(wif2)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	txs, err := service.GetUTXO(adr, nil)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	logging.Println("UTXO of ", adr)
+	for _, tx := range txs {
+		logging.Println("hash", hex.EncodeToString(tx.Hash))
+		logging.Println("amount", tx.Amount)
+		logging.Println("index", tx.Index)
+		logging.Println("script", hex.EncodeToString(tx.Script))
+	}
+
+	payer, err := NewMicropayer(txKey, txKey2.Pub, service)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	payee, err := NewMicropayee(txKey2, txKey.Pub, service)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	txHash, err := payer.CreateBond([]*Key{txKey}, 0.05*BTC)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	locktime := time.Now().Add(time.Hour)
+	sign, err := payee.SignToRefund(txHash, 0.05*BTC-Fee, uint32(locktime.Unix()))
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	_, err = payer.SendBond(uint32(locktime.Unix()), sign)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	signIP, err := payer.SignToIncrementedPayment(0.001 * BTC)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	err = payee.IncrementPayment(0.001*BTC, signIP)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	signIP, err = payer.SignToIncrementedPayment(0.001 * BTC)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	err = payee.IncrementPayment(0.001*BTC, signIP)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	_, err = payee.SendLastTX()
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+//	_, err = payer.SendRefund()
+//	if err != nil {
+//		t.Errorf(err.Error())
+//	}
 }

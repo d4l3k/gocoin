@@ -36,6 +36,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 )
 
 //TXin represents tx input of a transaction.
@@ -61,13 +62,36 @@ type TX struct {
 	Locktime uint32
 }
 
-const (
-	fee = 0.0002 * satoshi
-)
+func (tx *TX) check() error {
+	if tx.Txin == nil || len(tx.Txin) == 0 {
+		return errors.New("txin must be filled")
+	}
+	if tx.Txout == nil || len(tx.Txout) == 0 {
+		return errors.New("txout must be filled")
+	}
+	for i, in := range tx.Txin {
+		if in.Hash == nil {
+			return fmt.Errorf("hash of number %d of TxIn is nil", i)
+		}
+		if in.PrevScriptPubkey == nil {
+			return fmt.Errorf("PrevScriptPubkey of number %d is nil", i)
+		}
+	}
+	for i, out := range tx.Txout {
+		if out.ScriptPubkey == nil {
+			return fmt.Errorf("ScriptPubkey of number %d of Txout is nil", i)
+		}
+	}
+	return nil
+}
 
 //MakeTX makes transaction and return tx hex string(not send)
 func (tx *TX) MakeTX() ([]byte, error) {
 	var err error
+	if err = tx.check(); err != nil {
+		return nil, err
+	}
+
 	for i, in := range tx.Txin {
 		rawTransactionHashed := tx.getRawTransactionHash(i)
 
@@ -87,6 +111,20 @@ func (tx *TX) MakeTX() ([]byte, error) {
 	logging.Println(finalTransactionHex)
 
 	return finalTransaction, nil
+}
+
+func (tx *TX) getTransactionHash() ([]byte, error) {
+	rawtx, err := tx.MakeTX()
+	if err != nil {
+		return nil, err
+	}
+	hash := sha256.Sum256(rawtx)
+	h := sha256.Sum256(hash[:])
+	reversed := make([]byte, len(h))
+	for i, tb := range h {
+		reversed[len(h)-i-1] = tb
+	}
+	return reversed, nil
 }
 
 func (tx *TX) getRawTransactionHash(numSign int) []byte {
@@ -117,7 +155,7 @@ func (tx *TX) createRawTransaction(numSign int) []byte {
 	version := []byte{0x01, 0x00, 0x00, 0x00}
 	buffer.Write(version)
 
-	//# of inputs (always 1 in our case)
+	//# of inputs
 	inputs := toVI(uint64(len(tx.Txin)))
 	buffer.Write(inputs)
 
@@ -151,13 +189,13 @@ func (tx *TX) createRawTransaction(numSign int) []byte {
 
 		buffer.Write(script)
 
-		//sequence_no. Normally 0xFFFFFFFF. Always in this case.
+		//sequence_no. Normally 0xFFFFFFFF.
 		seqBytes := make([]byte, 4)
 		binary.LittleEndian.PutUint32(seqBytes, in.Sequence)
 		buffer.Write(seqBytes)
 	}
 
-	//# of outputs (always 1 in our case)
+	//# of outputs
 	outputs := toVI(uint64(len(tx.Txout)))
 	buffer.Write(outputs)
 
