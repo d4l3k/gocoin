@@ -59,8 +59,9 @@ var flagTestnet bool
 
 //PublicKey represents public key for bitcoin
 type PublicKey struct {
-	key       *btcec.PublicKey
-	isTestnet bool
+	key          *btcec.PublicKey
+	isTestnet    bool
+	isCompressed bool
 }
 
 //PrivateKey represents private key for bitcoin
@@ -111,7 +112,7 @@ func GetPublicKey(pubKeyByte []byte, isTestnet bool) (*PublicKey, error) {
 //GetKeyFromWIF gets PublicKey and PrivateKey from private key of WIF format.
 func GetKeyFromWIF(wif string) (*Key, error) {
 	secp256k1 := btcec.S256()
-	privateKeyBytes, prefix, err := base58check.Decode(wif)
+	privateKeyBytes, isCmpressed, err := base58check.Decode(wif)
 	if err != nil {
 		return nil, err
 	}
@@ -122,21 +123,21 @@ func GetKeyFromWIF(wif string) (*Key, error) {
 		Pub:  &pub,
 		Priv: &priv,
 	}
-	if prefix == 0xEF {
+	switch privateKeyBytes[0] {
+	case 0xef:
 		pub.isTestnet = true
 		priv.isTestnet = true
-	} else {
-		if prefix == 0x80 {
-			pub.isTestnet = false
-			priv.isTestnet = false
-
-		} else {
-			return nil, errors.New("cannot determin net param from private key")
-		}
+	case 0x80:
+		pub.isTestnet = false
+		priv.isTestnet = false
+	default:
+		return nil, errors.New("cannot determin net param from private key")
 	}
+	pub.isCompressed = isCmpressed
+	log.Println("compressed", pub.isCompressed)
 
 	//Get the raw public
-	priv.key, pub.key = btcec.PrivKeyFromBytes(secp256k1, privateKeyBytes)
+	priv.key, pub.key = btcec.PrivKeyFromBytes(secp256k1, privateKeyBytes[1:])
 
 	return &key, nil
 
@@ -180,6 +181,23 @@ func (priv *PrivateKey) Sign(hash []byte) ([]byte, error) {
 	return sig.Serialize(), nil
 }
 
+//SignMessage sign using bitcoin sign struct
+func (key *Key) SignMessage(hash []byte) ([]byte, error) {
+	msg := make([]byte, 0)
+	msg = append(msg, []byte("\x18Bitcoin Signed Message:\n")...)
+	msg = append(msg, []byte{byte(len(hash))}...)
+	msg = append(msg, hash...)
+	h := sha256.Sum256(msg)
+	hh := sha256.Sum256(h[:])
+	s256 := btcec.S256()
+
+	sig, err := btcec.SignCompact(s256, key.Priv.key, hh[:], key.Pub.isCompressed)
+	if err != nil {
+		return nil, err
+	}
+	return sig, nil
+}
+
 //GetWIFAddress returns WIF format string from PrivateKey
 func (priv *PrivateKey) GetWIFAddress() string {
 	var privateKeyPrefix byte
@@ -204,7 +222,13 @@ func (pub *PublicKey) GetAddress() (string, []byte) {
 
 	//Next we get a sha256 hash of the public key generated
 	//via ECDSA, and then get a ripemd160 hash of the sha256 hash.
-	shadPublicKeyBytes := sha256.Sum256(pub.key.SerializeUncompressed())
+	var shadPublicKeyBytes [32]byte
+	if pub.isCompressed {
+		shadPublicKeyBytes = sha256.Sum256(pub.key.SerializeCompressed())
+
+	} else {
+		shadPublicKeyBytes = sha256.Sum256(pub.key.SerializeUncompressed())
+	}
 
 	ripeHash := ripemd160.New()
 	ripeHash.Write(shadPublicKeyBytes[:])
@@ -216,15 +240,15 @@ func (pub *PublicKey) GetAddress() (string, []byte) {
 
 //IsTestnet returns true if addr is for testnet.
 func IsTestnet(addr string) (bool, error) {
-	_, prefix, err := base58check.Decode(addr)
+	bytes, _, err := base58check.Decode(addr)
 	if err != nil {
 		return false, err
 	}
 
-	switch {
-	case prefix == 0x6f:
+	switch bytes[0] {
+	case 0x6f:
 		return true, nil
-	case prefix == 0x00:
+	case 0x00:
 		return false, nil
 	default:
 		return false, errors.New("invalid address")

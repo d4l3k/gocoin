@@ -57,7 +57,7 @@ func Encode(prefix byte, byteData []byte) string {
 	return buffer.String()
 }
 
-func Decode(value string) ([]byte, byte, error) {
+func Decode(value string) ([]byte, bool, error) {
 	zeroBytes := 0
 	for i := 0; i < len(value); i++ {
 		if value[i] == 49 {
@@ -69,7 +69,7 @@ func Decode(value string) ([]byte, byte, error) {
 
 	publicKeyInt, err := base58.DecodeToBig([]byte(value))
 	if err != nil {
-		return nil, 0, err
+		return nil, false, err
 	}
 
 	encodedChecksum := publicKeyInt.Bytes()
@@ -92,5 +92,9 @@ func Decode(value string) ([]byte, byte, error) {
 		fmt.Println("warn:", "checksum not matched", "embeded cksum:", hex.EncodeToString(cksum), "cksum:", hex.EncodeToString(hash2[:4]))
 	}
 
-	return buffer.Bytes()[1:], buffer.Bytes()[0], err
+	result := buffer.Bytes()
+	if value[0] == 'K' || value[0] == 'L' || value[0] == 'c' {
+		return result[0 : len(result)-1], true, err
+	}
+	return result, false, err
 }
