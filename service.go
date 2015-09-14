@@ -29,10 +29,14 @@
 
 package gocoin
 
-import "math/rand"
+import (
+	"bytes"
+	"math/rand"
+)
 
 //UTXO represents unspent transaction outputs.
 type UTXO struct {
+	Addr   string
 	Hash   []byte
 	Amount uint64
 	Index  uint32
@@ -44,7 +48,7 @@ type UTXO struct {
 //UTXOs is for sorting UTXO
 type UTXOs []*UTXO
 
-var spentTX = make(map[[32]byte]bool)
+var cacheUTXO = make(map[string]UTXOs)
 
 //Service is for getting UTXO or sending transactions , basically by using WEB API.
 type Service interface {
@@ -90,9 +94,14 @@ func SelectService(isTestnet bool) (Service, error) {
 }
 
 //SetTXSpent sets  tx hash is already spent.
-func SetTXSpent(hash []byte) {
-	var h [32]byte
-	copy(h[:], hash)
-
-	spentTX[h] = false
+func SetUTXOSpent(hash []byte) {
+	for k, v := range cacheUTXO {
+		for i, utxo := range v {
+			if bytes.Compare(hash, utxo.Hash) == 0 {
+				v = append(v[0:i], v[i+1:]...)
+				cacheUTXO[k] = v
+				return
+			}
+		}
+	}
 }

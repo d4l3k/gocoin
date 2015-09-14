@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
+	"log"
 	"math/big"
 
 	"github.com/StorjPlatform/gocoin/base58check/base58"
@@ -26,17 +26,6 @@ func Encode(prefix byte, byteData []byte) string {
 	//Append this checksum to the input bytes
 	encodedChecksum := append(encoded, checksum...)
 
-	//base58 alone is not enough. We need to first count each of the zero bytes
-	//which are at the beginning of the encodedCheckSum
-	zeroBytes := 0
-	for _, cksum := range encodedChecksum {
-		if cksum == 0 {
-			zeroBytes += 1
-		} else {
-			break
-		}
-	}
-
 	//Convert this checksum'd version to a big Int
 	bigIntEncodedChecksum := big.NewInt(0)
 	bigIntEncodedChecksum.SetBytes(encodedChecksum)
@@ -48,8 +37,16 @@ func Encode(prefix byte, byteData []byte) string {
 	//base58 encoded string. The rational behind this is that base58 removes 0's (0x00).
 	//So bitcoin demands we add leading 0s back on as 1s.
 	var buffer bytes.Buffer
-	for i := 0; i < zeroBytes; i++ {
-		buffer.WriteString("1")
+
+	//base58 alone is not enough. We need to first count each of the zero bytes
+	//which are at the beginning of the encodedCheckSum
+
+	for _, v := range encodedChecksum {
+		if v == 0 {
+			buffer.WriteByte('1')
+		} else {
+			break
+		}
 	}
 
 	buffer.WriteString(base58EncodedChecksum)
@@ -58,15 +55,6 @@ func Encode(prefix byte, byteData []byte) string {
 }
 
 func Decode(value string) ([]byte, bool, error) {
-	zeroBytes := 0
-	for i := 0; i < len(value); i++ {
-		if value[i] == 49 {
-			zeroBytes += 1
-		} else {
-			break
-		}
-	}
-
 	publicKeyInt, err := base58.DecodeToBig([]byte(value))
 	if err != nil {
 		return nil, false, err
@@ -78,21 +66,26 @@ func Decode(value string) ([]byte, bool, error) {
 	cksum := encodedChecksum[len(encodedChecksum)-4:]
 
 	var buffer bytes.Buffer
-	for i := 0; i < zeroBytes; i++ {
-		buffer.WriteByte(0)
+	for _, v := range value {
+		if v == '1' {
+			buffer.WriteByte(0)
+		} else {
+			break
+		}
 	}
 
 	buffer.Write(encoded)
 
+	result := buffer.Bytes()
+
 	//Perform SHA-256 twice
-	hash := sha256.Sum256(encoded)
+	hash := sha256.Sum256(result)
 	hash2 := sha256.Sum256(hash[:])
 
 	if !bytes.Equal(hash2[:4], cksum) {
-		fmt.Println("warn:", "checksum not matched", "embeded cksum:", hex.EncodeToString(cksum), "cksum:", hex.EncodeToString(hash2[:4]))
+		log.Println(value, "warn:", "checksum not matched", "embeded cksum:", hex.EncodeToString(cksum), "cksum:", hex.EncodeToString(hash2[:4]))
 	}
 
-	result := buffer.Bytes()
 	if value[0] == 'K' || value[0] == 'L' || value[0] == 'c' {
 		return result[0 : len(result)-1], true, err
 	}

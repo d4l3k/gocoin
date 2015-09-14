@@ -153,5 +153,5 @@ const (
 	BTC = 100000000
 
 	//Fee for a transaction
-	Fee = 0.0002 * BTC
+	DefaultFee = uint64(0.0001 * BTC) //  0.0001 BTC/kB
 )

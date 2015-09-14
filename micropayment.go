@@ -133,7 +133,7 @@ func (m *micropayment) createRefund(amount []*Amounts, lockTime *time.Time, paye
 func (m *Micropayer) CreateBond(keys []*Key, amount uint64) ([]byte, error) {
 	var err error
 
-	m.TotalAmount = amount - Fee
+	m.TotalAmount = amount - DefaultFee
 	m.bond, err = m.rs.getMultisigTX(keys, amount, m.service)
 	if err != nil {
 		return nil, err

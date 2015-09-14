@@ -186,7 +186,7 @@ func (rs *RedeemScript) getMultisigTX(keys []*Key, amount uint64, service Servic
 	tx := TX{}
 	tx.Locktime = 0
 	var remain uint64
-	tx.Txin, remain, err = setupP2PKHTXin(keys, amount+Fee, service)
+	tx.Txin, remain, err = setupP2PKHTXin(keys, amount+DefaultFee, service)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (rs *RedeemScript) CreateRawTransactionHashed(addresses []*Amounts, service
 	var utxo *UTXO
 	txs, err := service.GetUTXO(rs.GetAddress(), nil)
 	for _, tx := range txs {
-		if tx.Amount >= totalAmount+Fee {
+		if tx.Amount >= totalAmount+DefaultFee{
 			utxo = tx
 			logging.Println("using tx:", hex.EncodeToString(utxo.Hash))
 			break

@@ -122,6 +122,9 @@ func (b *BlockrService) SendTX(data []byte) ([]byte, error) {
 
 //GetUTXO gets unspent transaction outputs by using Blockr.io.
 func (b *BlockrService) GetUTXO(addr string, key *Key) (UTXOs, error) {
+	if cacheUTXO[addr] != nil {
+		return cacheUTXO[addr], nil
+	}
 	var btc string
 
 	if b.isTestnet {
@@ -150,22 +153,13 @@ func (b *BlockrService) GetUTXO(addr string, key *Key) (UTXOs, error) {
 
 	utxos := make(UTXOs, 0, len(u.Data.Unspent))
 	for _, tx := range u.Data.Unspent {
-		alreadySpent := false
-		for h := range spentTX {
-			if tx.Tx == hex.EncodeToString(h[:]) {
-				alreadySpent = true
-			}
-		}
-		if alreadySpent {
-			continue
-		}
-
 		utxo := UTXO{}
+		utxo.Addr = addr
 		amount, err := strconv.ParseFloat(tx.Amount, 64)
 		if err != nil {
 			return nil, err
 		}
-		utxo.Amount = uint64(amount * 100000000)
+		utxo.Amount = uint64(amount * BTC)
 		utxo.Hash, err = hex.DecodeString(tx.Tx)
 		if err != nil {
 			return nil, err
@@ -179,6 +173,6 @@ func (b *BlockrService) GetUTXO(addr string, key *Key) (UTXOs, error) {
 		utxo.Key = key
 		utxos = append(utxos, &utxo)
 	}
-
+	cacheUTXO[addr] = utxos
 	return utxos, nil
 }

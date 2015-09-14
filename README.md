@@ -78,7 +78,7 @@ func main(){
 	txs, _ := service.GetUTXO(adr,nil)
 	
 	//Normal Payment
-	gocoin.Pay([]*Key{txKey}, map[string]uint64{"n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi": 0.01 * gocoin.BTC}, service)
+	gocoin.Pay([]*Key{txKey}, []*gocoin.Amounts{&{gocoin.Amounts{"n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi", 0.01*gocoin.BTC}}, service)
 }
 ```
 
@@ -100,7 +100,7 @@ func main(){
 	rs.Pay([]*Key{txKey}, 0.05*gocoin.BTC, service)
 
     //get a raw transaction for signing.
-	rawtx, tx, _:= rs.CreateRawTransactionHashed(map[string]uint64{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy": 0.05*gocoin.BTC}, service)
+	rawtx, tx, _:= rs.CreateRawTransactionHashed([]*gocoin.Amounts{&{gocoin.Amounts{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy", 0.05*gocoin.BTC}}, service)
 
 	//spend the fund
 	sign1, _:= key2.Priv.Sign(rawtx)

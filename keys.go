@@ -134,7 +134,6 @@ func GetKeyFromWIF(wif string) (*Key, error) {
 		return nil, errors.New("cannot determin net param from private key")
 	}
 	pub.isCompressed = isCmpressed
-	log.Println("compressed", pub.isCompressed)
 
 	//Get the raw public
 	priv.key, pub.key = btcec.PrivKeyFromBytes(secp256k1, privateKeyBytes[1:])

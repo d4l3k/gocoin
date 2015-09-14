@@ -50,6 +50,7 @@ func createP2PKHScriptPubkey(publicKeyBase58 string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	publicKeyBytes = publicKeyBytes[1:]
 
 	var scriptPubKey bytes.Buffer
 	scriptPubKey.WriteByte(opDUP)
@@ -107,7 +108,7 @@ func setupP2PKHTXin(keys []*Key, totalAmount uint64, service Service) ([]*TXin, 
 	var amount uint64
 	for i := range utxos {
 		utxo := utxos[len(utxos)-1-i]
-		logging.Println("using utxo", hex.EncodeToString(utxo.Hash))
+		logging.Println("using utxo", utxo.Addr, hex.EncodeToString(utxo.Hash))
 		txin := TXin{}
 		txin.Hash = utxo.Hash
 		txin.Index = utxo.Index
@@ -117,7 +118,6 @@ func setupP2PKHTXin(keys []*Key, totalAmount uint64, service Service) ([]*TXin, 
 			return createP2PKHScriptSig(rawTransaction, utxo.Key)
 		}
 		txins = append(txins, &txin)
-		SetTXSpent(utxo.Hash)
 		if amount += utxo.Amount; amount >= totalAmount {
 			return txins, amount - totalAmount, nil
 		}
@@ -144,41 +144,62 @@ func setupP2PKHTXout(amounts []*Amounts) ([]*TXout, error) {
 //Pay pays in a nomal way.(P2KSH)
 func Pay(keys []*Key, addresses []*Amounts, service Service) ([]byte, error) {
 	var err error
-
 	var totalAmount uint64
 	for _, amount := range addresses {
 		totalAmount += amount.Amount
 	}
-
+	var rawtx []byte
 	tx := TX{}
 	tx.Locktime = 0
-	var remain uint64
-	tx.Txin, remain, err = setupP2PKHTXin(keys, totalAmount+Fee, service)
-	if err != nil {
-		return nil, err
-	}
+	var kb uint64 = 1
+	for {
+		var remain uint64
 
-	adr, _ := keys[0].Pub.GetAddress()
-	exist := false
-	for i, addr := range addresses {
-		if adr == addr.Address {
-			addresses[i].Amount += remain
-			exist = true
+		tx.Txin, remain, err = setupP2PKHTXin(keys, totalAmount+DefaultFee*kb, service)
+		if err != nil {
+			logging.Println(err)
+			return nil, err
+		}
+		a := make([]*Amounts, len(addresses))
+		for i, addr := range addresses {
+			a[i] = addr
+		}
+		if remain != 0 {
+			adr, _ := keys[0].Pub.GetAddress()
+			exist := false
+			for _, addr := range a {
+				if adr == addr.Address {
+					addr.Amount += remain
+					exist = true
+					break
+				}
+			}
+			if !exist {
+				a = append(a, &Amounts{adr, remain})
+			}
+		}
+		tx.Txout, err = setupP2PKHTXout(a)
+
+		rawtx, err = tx.MakeTX()
+		if err != nil {
+			return nil, err
+		}
+		logging.Println("size", len(rawtx))
+		if uint64(len(rawtx)) < 1024*kb {
 			break
 		}
+		kb = uint64(len(rawtx)/1024) + 1
+		logging.Println("regenerating tx for new fee", DefaultFee*kb)
 	}
-	if !exist {
-		addresses = append(addresses, &Amounts{adr, remain})
-	}
-	tx.Txout, err = setupP2PKHTXout(addresses)
+	logging.Println("fee", DefaultFee*kb)
 
-	rawtx, err := tx.MakeTX()
+	var txHash []byte
+	txHash, err = service.SendTX(rawtx)
 	if err != nil {
 		return nil, err
 	}
-	txHash, err := service.SendTX(rawtx)
-	if err != nil {
-		return nil, err
+	for _, txin := range tx.Txin {
+		SetUTXOSpent(txin.Hash)
 	}
 	logging.Println("tx hash", hex.EncodeToString(txHash))
 	return txHash, nil
