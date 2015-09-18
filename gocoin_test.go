@@ -126,7 +126,6 @@ func TestTX(t *testing.T) {
 	if hex.EncodeToString(rawtx) != ok {
 		t.Errorf("invalid tx")
 	}
-	logging.Println(tx)
 }
 
 func TestSend(t *testing.T) {
@@ -381,7 +380,7 @@ func TestMultisig(t *testing.T) {
 	}
 
 	//spend the fund
-	rawtx, tx, err := rs.CreateRawTransactionHashed([]*Amounts{&Amounts{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy", txs[0].Amount - Fee}}, service)
+	rawtx, tx, err := rs.CreateRawTransactionHashed([]*Amounts{&Amounts{"n3Bp1hbgtmwDtjQTpa6BnPPCA8fTymsiZy", txs[0].Amount - DefaultFee}}, service)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -447,7 +446,7 @@ func TestMicro(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 	locktime := time.Now().Add(time.Hour)
-	sign, err := payee.SignToRefund(txHash, 0.05*BTC-Fee, &locktime)
+	sign, err := payee.SignToRefund(txHash, 0.05*BTC-DefaultFee, &locktime)
 	if err != nil {
 		t.Errorf(err.Error())
 	}

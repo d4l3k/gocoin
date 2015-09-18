@@ -173,6 +173,8 @@ func (b *BlockrService) GetUTXO(addr string, key *Key) (UTXOs, error) {
 		utxo.Key = key
 		utxos = append(utxos, &utxo)
 	}
-	cacheUTXO[addr] = utxos
+	if key != nil {
+		cacheUTXO[addr] = utxos
+	}
 	return utxos, nil
 }

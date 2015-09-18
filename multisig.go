@@ -216,6 +216,9 @@ func (rs *RedeemScript) Pay(keys []*Key, amount uint64, service Service) ([]byte
 	if err != nil {
 		return nil, err
 	}
+	for _, txin := range tx.Txin {
+		SetUTXOSpent(txin.Hash)
+	}
 	logging.Println("tx hash", hex.EncodeToString(txHash))
 	return txHash, nil
 }
@@ -233,7 +236,7 @@ func (rs *RedeemScript) CreateRawTransactionHashed(addresses []*Amounts, service
 	var utxo *UTXO
 	txs, err := service.GetUTXO(rs.GetAddress(), nil)
 	for _, tx := range txs {
-		if tx.Amount >= totalAmount+DefaultFee{
+		if tx.Amount >= totalAmount+DefaultFee {
 			utxo = tx
 			logging.Println("using tx:", hex.EncodeToString(utxo.Hash))
 			break
